@@ -209,3 +209,33 @@ If the goal is a minimal production stack, Python can be omitted entirely: all c
 - Required determinism level across reruns.
 - Buffer business semantics: upstream blocking vs part rejection/scrap.
 - First-iteration target KPIs (e.g., throughput + lead time + risk contribution).
+
+## 12) Updated graph semantics for technological routes
+
+The route graph models **technological operations**, not physical machines.
+
+- A graph **node** is a technological operation.
+- A graph **edge** is a transition between operations.
+- Equipment is modeled as a **resource pool** and can be shared across operations.
+
+### Equipment and operation behavior
+
+1. **Identical equipment case**
+   - If several machines provide the same processing characteristics for an operation, they belong to the same operation node.
+   - Example: three equivalent drilling machines.
+   - The route does not change; only the selected free resource changes.
+
+2. **Non-identical equipment case**
+   - If alternative machines produce different operation parameters (for example different mean/std processing time), they must be represented as different operation nodes.
+   - Operation names may be equal, but parameter sets differ, so they are different graph nodes.
+   - This supports both fallback routing (fast machine busy -> slower machine) and parallel execution on heterogeneous equipment.
+
+### API contract alignment
+
+The request model should contain:
+
+- `operations[]`: operation nodes with processing parameters (`mean`, `std`, and `distributionType`) and a list of eligible equipment IDs.
+- `equipmentResources[]`: reusable resources (equipment catalog) with quantity.
+- `transitions[]`: directed links between operations.
+
+This model allows one equipment resource to participate in multiple operations and prepares the simulator for future scenarios where the same equipment processes different batches or different part types.
