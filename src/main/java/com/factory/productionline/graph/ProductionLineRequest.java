@@ -18,10 +18,22 @@ public record ProductionLineRequest(
     public record Operation(
             @NotBlank String id,
             @NotBlank String name,
+            @NotEmpty List<@Valid ProcessingState> manStates,
+            @NotEmpty List<@Valid ProcessingState> materialStates,
+            @NotEmpty List<@Valid ProcessingState> machineStates,
+            @NotEmpty List<@Valid ProcessingState> methodStates,
+            @NotEmpty List<@NotBlank String> eligibleManIds,
+            @NotEmpty List<@NotBlank String> eligibleMaterialIds,
+            @NotEmpty List<@NotBlank String> eligibleMachineIds,
+            @NotEmpty List<@NotBlank String> eligibleMethodIds
+    ) {
+    }
+
+    public record ProcessingState(
+            @PositiveOrZero int z,
             @DecimalMin(value = "0.0", inclusive = false) double meanProcessingTimeSeconds,
             @PositiveOrZero double standardDeviationSeconds,
-            @NotNull DistributionType distributionType,
-            @NotEmpty List<@NotBlank String> eligibleEquipmentIds
+            @NotNull DistributionType distributionType
     ) {
     }
 

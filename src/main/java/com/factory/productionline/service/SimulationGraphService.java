@@ -39,7 +39,8 @@ public class SimulationGraphService {
                         LinkedHashMap::new
                 ));
 
-        validateEquipmentAssignments(request.operations(), equipmentById);
+        validateResourceAssignments(request.operations(), equipmentById);
+        validateStates(request.operations());
 
         Map<String, List<String>> adjacency = new LinkedHashMap<>();
         request.operations().forEach(operation -> adjacency.put(operation.id(), new ArrayList<>()));
@@ -72,10 +73,14 @@ public class SimulationGraphService {
                         .map(operation -> new SimulationGraphResponse.OperationNode(
                                 operation.id(),
                                 operation.name(),
-                                operation.meanProcessingTimeSeconds(),
-                                operation.standardDeviationSeconds(),
-                                operation.distributionType(),
-                                operation.eligibleEquipmentIds()
+                                mapStates(operation.manStates()),
+                                mapStates(operation.materialStates()),
+                                mapStates(operation.machineStates()),
+                                mapStates(operation.methodStates()),
+                                operation.eligibleManIds(),
+                                operation.eligibleMaterialIds(),
+                                operation.eligibleMachineIds(),
+                                operation.eligibleMethodIds()
                         ))
                         .toList(),
                 request.transitions().stream()
@@ -98,21 +103,73 @@ public class SimulationGraphService {
         );
     }
 
-    private void validateEquipmentAssignments(List<ProductionLineRequest.Operation> operations,
-                                              Map<String, ProductionLineRequest.EquipmentResource> equipmentById) {
+    private void validateResourceAssignments(List<ProductionLineRequest.Operation> operations,
+                                             Map<String, ProductionLineRequest.EquipmentResource> equipmentById) {
         for (ProductionLineRequest.Operation operation : operations) {
-            Set<String> uniqueEquipmentIds = new HashSet<>();
-            for (String equipmentId : operation.eligibleEquipmentIds()) {
-                if (!equipmentById.containsKey(equipmentId)) {
+            validateUniqueAssignments(operation.id(), operation.eligibleMachineIds(), "machine");
+            validateUniqueAssignments(operation.id(), operation.eligibleManIds(), "man");
+            validateUniqueAssignments(operation.id(), operation.eligibleMaterialIds(), "material");
+            validateUniqueAssignments(operation.id(), operation.eligibleMethodIds(), "method");
+
+            for (String machineId : operation.eligibleMachineIds()) {
+                if (!equipmentById.containsKey(machineId)) {
                     throw new IllegalArgumentException("Operation " + operation.id()
-                            + " references unknown equipment: " + equipmentId);
-                }
-                if (!uniqueEquipmentIds.add(equipmentId)) {
-                    throw new IllegalArgumentException("Operation " + operation.id()
-                            + " has duplicate equipment assignment: " + equipmentId);
+                            + " references unknown machine: " + machineId);
                 }
             }
         }
+    }
+
+    private void validateStates(List<ProductionLineRequest.Operation> operations) {
+        for (ProductionLineRequest.Operation operation : operations) {
+            validateCategoryStates(operation.id(), "man", operation.manStates());
+            validateCategoryStates(operation.id(), "material", operation.materialStates());
+            validateCategoryStates(operation.id(), "machine", operation.machineStates());
+            validateCategoryStates(operation.id(), "method", operation.methodStates());
+        }
+    }
+
+    private void validateCategoryStates(String operationId,
+                                        String category,
+                                        List<ProductionLineRequest.ProcessingState> states) {
+        Set<Integer> uniqueZ = new HashSet<>();
+        boolean hasNormalState = false;
+
+        for (ProductionLineRequest.ProcessingState state : states) {
+            if (!uniqueZ.add(state.z())) {
+                throw new IllegalArgumentException("Operation " + operationId
+                        + " has duplicate z state in " + category + " category: " + state.z());
+            }
+            if (state.z() == 0) {
+                hasNormalState = true;
+            }
+        }
+
+        if (!hasNormalState) {
+            throw new IllegalArgumentException("Operation " + operationId
+                    + " must contain normal state z=0 for " + category + " category");
+        }
+    }
+
+    private void validateUniqueAssignments(String operationId, List<String> ids, String category) {
+        Set<String> uniqueIds = new HashSet<>();
+        for (String id : ids) {
+            if (!uniqueIds.add(id)) {
+                throw new IllegalArgumentException("Operation " + operationId
+                        + " has duplicate " + category + " assignment: " + id);
+            }
+        }
+    }
+
+    private List<SimulationGraphResponse.ProcessingStateNode> mapStates(List<ProductionLineRequest.ProcessingState> states) {
+        return states.stream()
+                .map(state -> new SimulationGraphResponse.ProcessingStateNode(
+                        state.z(),
+                        state.meanProcessingTimeSeconds(),
+                        state.standardDeviationSeconds(),
+                        state.distributionType()
+                ))
+                .toList();
     }
 
     private List<String> topologicalSort(Map<String, List<String>> adjacency) {

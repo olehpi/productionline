@@ -26,26 +26,38 @@ class SimulationGraphControllerTest {
                     {
                       "id": "drill-fast",
                       "name": "Drilling",
-                      "meanProcessingTimeSeconds": 10.0,
-                      "standardDeviationSeconds": 1.5,
-                      "distributionType": "NORMAL",
-                      "eligibleEquipmentIds": ["drill-a", "drill-b"]
+                      "manStates": [{"z": 0, "meanProcessingTimeSeconds": 10.0, "standardDeviationSeconds": 1.5, "distributionType": "NORMAL"}, {"z": 1, "meanProcessingTimeSeconds": 14.0, "standardDeviationSeconds": 2.5, "distributionType": "NORMAL"}],
+                      "materialStates": [{"z": 0, "meanProcessingTimeSeconds": 10.0, "standardDeviationSeconds": 1.5, "distributionType": "NORMAL"}, {"z": 1, "meanProcessingTimeSeconds": 13.0, "standardDeviationSeconds": 2.0, "distributionType": "LOGNORMAL"}],
+                      "machineStates": [{"z": 0, "meanProcessingTimeSeconds": 10.0, "standardDeviationSeconds": 1.5, "distributionType": "NORMAL"}, {"z": 1, "meanProcessingTimeSeconds": 18.0, "standardDeviationSeconds": 3.0, "distributionType": "LOGNORMAL"}],
+                      "methodStates": [{"z": 0, "meanProcessingTimeSeconds": 10.0, "standardDeviationSeconds": 1.5, "distributionType": "NORMAL"}, {"z": 1, "meanProcessingTimeSeconds": 12.0, "standardDeviationSeconds": 1.8, "distributionType": "UNIFORM"}],
+                      "eligibleManIds": ["operator-a"],
+                      "eligibleMaterialIds": ["material-a"],
+                      "eligibleMachineIds": ["drill-a", "drill-b"],
+                      "eligibleMethodIds": ["method-drill"]
                     },
                     {
                       "id": "drill-slow",
                       "name": "Drilling",
-                      "meanProcessingTimeSeconds": 20.0,
-                      "standardDeviationSeconds": 2.0,
-                      "distributionType": "LOGNORMAL",
-                      "eligibleEquipmentIds": ["drill-c"]
+                      "manStates": [{"z": 0, "meanProcessingTimeSeconds": 20.0, "standardDeviationSeconds": 2.0, "distributionType": "LOGNORMAL"}, {"z": 1, "meanProcessingTimeSeconds": 22.0, "standardDeviationSeconds": 2.5, "distributionType": "LOGNORMAL"}],
+                      "materialStates": [{"z": 0, "meanProcessingTimeSeconds": 20.0, "standardDeviationSeconds": 2.0, "distributionType": "LOGNORMAL"}, {"z": 2, "meanProcessingTimeSeconds": 26.0, "standardDeviationSeconds": 3.0, "distributionType": "NORMAL"}],
+                      "machineStates": [{"z": 0, "meanProcessingTimeSeconds": 20.0, "standardDeviationSeconds": 2.0, "distributionType": "LOGNORMAL"}, {"z": 2, "meanProcessingTimeSeconds": 28.0, "standardDeviationSeconds": 4.0, "distributionType": "UNIFORM"}],
+                      "methodStates": [{"z": 0, "meanProcessingTimeSeconds": 20.0, "standardDeviationSeconds": 2.0, "distributionType": "LOGNORMAL"}, {"z": 1, "meanProcessingTimeSeconds": 24.0, "standardDeviationSeconds": 2.2, "distributionType": "NORMAL"}],
+                      "eligibleManIds": ["operator-b"],
+                      "eligibleMaterialIds": ["material-b"],
+                      "eligibleMachineIds": ["drill-c"],
+                      "eligibleMethodIds": ["method-drill"]
                     },
                     {
                       "id": "pack",
                       "name": "Packaging",
-                      "meanProcessingTimeSeconds": 12.0,
-                      "standardDeviationSeconds": 1.0,
-                      "distributionType": "UNIFORM",
-                      "eligibleEquipmentIds": ["pack-1"]
+                      "manStates": [{"z": 0, "meanProcessingTimeSeconds": 12.0, "standardDeviationSeconds": 1.0, "distributionType": "UNIFORM"}, {"z": 1, "meanProcessingTimeSeconds": 15.0, "standardDeviationSeconds": 2.0, "distributionType": "NORMAL"}],
+                      "materialStates": [{"z": 0, "meanProcessingTimeSeconds": 12.0, "standardDeviationSeconds": 1.0, "distributionType": "UNIFORM"}, {"z": 1, "meanProcessingTimeSeconds": 14.0, "standardDeviationSeconds": 1.5, "distributionType": "LOGNORMAL"}],
+                      "machineStates": [{"z": 0, "meanProcessingTimeSeconds": 12.0, "standardDeviationSeconds": 1.0, "distributionType": "UNIFORM"}, {"z": 1, "meanProcessingTimeSeconds": 16.0, "standardDeviationSeconds": 2.5, "distributionType": "NORMAL"}],
+                      "methodStates": [{"z": 0, "meanProcessingTimeSeconds": 12.0, "standardDeviationSeconds": 1.0, "distributionType": "UNIFORM"}, {"z": 1, "meanProcessingTimeSeconds": 13.0, "standardDeviationSeconds": 1.2, "distributionType": "UNIFORM"}],
+                      "eligibleManIds": ["operator-c"],
+                      "eligibleMaterialIds": ["material-pack"],
+                      "eligibleMachineIds": ["pack-1"],
+                      "eligibleMethodIds": ["method-pack"]
                     }
                   ],
                   "equipmentResources": [
@@ -70,8 +82,8 @@ class SimulationGraphControllerTest {
                 .andExpect(jsonPath("$.topologicalOrder[1]").value("drill-slow"))
                 .andExpect(jsonPath("$.topologicalOrder[2]").value("pack"))
                 .andExpect(jsonPath("$.adjacency.drill-fast[0]").value("pack"))
-                .andExpect(jsonPath("$.nodes[0].distributionType").value("NORMAL"))
-                .andExpect(jsonPath("$.nodes[0].eligibleEquipmentIds[0]").value("drill-a"))
+                .andExpect(jsonPath("$.nodes[0].machineStates[0].distributionType").value("NORMAL"))
+                .andExpect(jsonPath("$.nodes[0].eligibleMachineIds[0]").value("drill-a"))
                 .andExpect(jsonPath("$.equipmentResources[2].id").value("drill-c"));
     }
 
@@ -83,10 +95,14 @@ class SimulationGraphControllerTest {
                     {
                       "id": "drill-fast",
                       "name": "Drilling",
-                      "meanProcessingTimeSeconds": 10.0,
-                      "standardDeviationSeconds": 1.5,
-                      "distributionType": "NORMAL",
-                      "eligibleEquipmentIds": ["drill-a", "drill-z"]
+                      "manStates": [{"z": 0, "meanProcessingTimeSeconds": 10.0, "standardDeviationSeconds": 1.5, "distributionType": "NORMAL"}, {"z": 1, "meanProcessingTimeSeconds": 14.0, "standardDeviationSeconds": 2.5, "distributionType": "NORMAL"}],
+                      "materialStates": [{"z": 0, "meanProcessingTimeSeconds": 10.0, "standardDeviationSeconds": 1.5, "distributionType": "NORMAL"}, {"z": 1, "meanProcessingTimeSeconds": 13.0, "standardDeviationSeconds": 2.0, "distributionType": "LOGNORMAL"}],
+                      "machineStates": [{"z": 0, "meanProcessingTimeSeconds": 10.0, "standardDeviationSeconds": 1.5, "distributionType": "NORMAL"}, {"z": 1, "meanProcessingTimeSeconds": 18.0, "standardDeviationSeconds": 3.0, "distributionType": "LOGNORMAL"}],
+                      "methodStates": [{"z": 0, "meanProcessingTimeSeconds": 10.0, "standardDeviationSeconds": 1.5, "distributionType": "NORMAL"}, {"z": 1, "meanProcessingTimeSeconds": 12.0, "standardDeviationSeconds": 1.8, "distributionType": "UNIFORM"}],
+                      "eligibleManIds": ["operator-a"],
+                      "eligibleMaterialIds": ["material-a"],
+                      "eligibleMachineIds": ["drill-a", "drill-z"],
+                      "eligibleMethodIds": ["method-drill"]
                     }
                   ],
                   "equipmentResources": [
@@ -103,6 +119,6 @@ class SimulationGraphControllerTest {
                         .content(payload))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Invalid production line configuration"))
-                .andExpect(jsonPath("$.detail").value("Operation drill-fast references unknown equipment: drill-z"));
+                .andExpect(jsonPath("$.detail").value("Operation drill-fast references unknown machine: drill-z"));
     }
 }

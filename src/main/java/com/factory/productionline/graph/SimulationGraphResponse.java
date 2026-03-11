@@ -14,10 +14,22 @@ public record SimulationGraphResponse(
     public record OperationNode(
             String id,
             String name,
+            List<ProcessingStateNode> manStates,
+            List<ProcessingStateNode> materialStates,
+            List<ProcessingStateNode> machineStates,
+            List<ProcessingStateNode> methodStates,
+            List<String> eligibleManIds,
+            List<String> eligibleMaterialIds,
+            List<String> eligibleMachineIds,
+            List<String> eligibleMethodIds
+    ) {
+    }
+
+    public record ProcessingStateNode(
+            int z,
             double meanProcessingTimeSeconds,
             double standardDeviationSeconds,
-            DistributionType distributionType,
-            List<String> eligibleEquipmentIds
+            DistributionType distributionType
     ) {
     }
 
