@@ -26,16 +26,25 @@ class SimulationGraphControllerTest {
                     {
                       "id": "route-1",
                       "name": "Main route",
-                      "operations": [
-                        {
-                          "id": "op-1",
-                          "name": "Cutting",
-                          "men": [{}],
-                          "materials": [{}],
-                          "machines": [{}],
-                          "methods": [{}]
-                        }
-                      ]
+                      "operationIds": ["op-1", "op-2"]
+                    }
+                  ],
+                  "availableOperations": [
+                    {
+                      "id": "op-1",
+                      "name": "Cutting",
+                      "men": [{}],
+                      "materials": [{}],
+                      "machines": [{}],
+                      "methods": [{}]
+                    },
+                    {
+                      "id": "op-2",
+                      "name": "Packaging",
+                      "men": [{}],
+                      "materials": [{}],
+                      "machines": [{}],
+                      "methods": [{}]
                     }
                   ]
                 }
@@ -46,21 +55,40 @@ class SimulationGraphControllerTest {
                         .content(payload))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.routes[0].id").value("route-1"))
-                .andExpect(jsonPath("$.routes[0].operations[0].id").value("op-1"))
-                .andExpect(jsonPath("$.routes[0].operations[0].men.length()").value(1));
+                .andExpect(jsonPath("$.routes[0].operationIds[1]").value("op-2"))
+                .andExpect(jsonPath("$.availableOperations[0].id").value("op-1"))
+                .andExpect(jsonPath("$.availableOperations[0].men.length()").value(1));
     }
 
     @Test
-    void buildGraphReturnsBadRequestForEmptyRoutes() throws Exception {
+    void buildGraphReturnsBadRequestForUnknownOperationReference() throws Exception {
         String payload = """
                 {
-                  "routes": []
+                  "routes": [
+                    {
+                      "id": "route-1",
+                      "name": "Main route",
+                      "operationIds": ["op-unknown"]
+                    }
+                  ],
+                  "availableOperations": [
+                    {
+                      "id": "op-1",
+                      "name": "Cutting",
+                      "men": [{}],
+                      "materials": [{}],
+                      "machines": [{}],
+                      "methods": [{}]
+                    }
+                  ]
                 }
                 """;
 
         mockMvc.perform(post("/api/simulation-graph")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Invalid production line configuration"))
+                .andExpect(jsonPath("$.detail").value("Route route-1 references unknown operation id: op-unknown"));
     }
 }

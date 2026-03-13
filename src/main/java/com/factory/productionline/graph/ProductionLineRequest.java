@@ -7,12 +7,13 @@ import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
 
 public record ProductionLineRequest(
-        @NotEmpty List<@Valid Route> routes
+        @NotEmpty List<@Valid Route> routes,
+        @NotEmpty List<@Valid Operation> availableOperations
 ) {
     public record Route(
             @NotBlank String id,
             @NotBlank String name,
-            @NotEmpty List<@Valid Operation> operations
+            @NotEmpty List<@NotBlank String> operationIds
     ) {
     }
 

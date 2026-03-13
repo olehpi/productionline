@@ -3,12 +3,13 @@ package com.factory.productionline.graph;
 import java.util.List;
 
 public record ProductionLineResponse(
-        List<Route> routes
+        List<Route> routes,
+        List<Operation> availableOperations
 ) {
     public record Route(
             String id,
             String name,
-            List<Operation> operations
+            List<String> operationIds
     ) {
     }
 
