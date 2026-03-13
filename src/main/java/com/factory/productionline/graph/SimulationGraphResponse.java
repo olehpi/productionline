@@ -4,28 +4,29 @@ import java.util.List;
 import java.util.Map;
 
 public record SimulationGraphResponse(
-        List<OperationNode> nodes,
+        List<Operation> nodes,
         List<OperationEdge> edges,
-        List<EquipmentResourceNode> equipmentResources,
+        List<EquipmentResource> equipmentResources,
         Map<String, List<String>> adjacency,
         boolean hasCycle,
         List<String> topologicalOrder
 ) {
-    public record OperationNode(
+    public record Operation(
             String id,
             String name,
-            List<ProcessingStateNode> manStates,
-            List<ProcessingStateNode> materialStates,
-            List<ProcessingStateNode> machineStates,
-            List<ProcessingStateNode> methodStates,
+            List<ProcessingState> manStates,
+            List<ProcessingState> materialStates,
+            List<ProcessingState> machineStates,
+            List<ProcessingState> methodStates,
             List<String> eligibleManIds,
             List<String> eligibleMaterialIds,
             List<String> eligibleMachineIds,
-            List<String> eligibleMethodIds
+            List<String> eligibleMethodIds,
+            List<RiskCategory> riskCategories
     ) {
     }
 
-    public record ProcessingStateNode(
+    public record ProcessingState(
             int z,
             double meanProcessingTimeSeconds,
             double standardDeviationSeconds,
@@ -33,7 +34,14 @@ public record SimulationGraphResponse(
     ) {
     }
 
-    public record EquipmentResourceNode(
+    public record RiskCategory(
+            String category,
+            List<ProcessingState> states,
+            List<String> eligibleResourceIds
+    ) {
+    }
+
+    public record EquipmentResource(
             String id,
             String name,
             String type,

@@ -84,6 +84,8 @@ class SimulationGraphControllerTest {
                 .andExpect(jsonPath("$.adjacency.drill-fast[0]").value("pack"))
                 .andExpect(jsonPath("$.nodes[0].machineStates[0].distributionType").value("NORMAL"))
                 .andExpect(jsonPath("$.nodes[0].eligibleMachineIds[0]").value("drill-a"))
+                .andExpect(jsonPath("$.nodes[0].riskCategories[2].category").value("machine"))
+                .andExpect(jsonPath("$.nodes[0].riskCategories[2].eligibleResourceIds[0]").value("drill-a"))
                 .andExpect(jsonPath("$.equipmentResources[2].id").value("drill-c"));
     }
 

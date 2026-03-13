@@ -70,7 +70,7 @@ public class SimulationGraphService {
 
         return new SimulationGraphResponse(
                 request.operations().stream()
-                        .map(operation -> new SimulationGraphResponse.OperationNode(
+                        .map(operation -> new SimulationGraphResponse.Operation(
                                 operation.id(),
                                 operation.name(),
                                 mapStates(operation.manStates()),
@@ -80,7 +80,8 @@ public class SimulationGraphService {
                                 operation.eligibleManIds(),
                                 operation.eligibleMaterialIds(),
                                 operation.eligibleMachineIds(),
-                                operation.eligibleMethodIds()
+                                operation.eligibleMethodIds(),
+                                buildRiskCategories(operation)
                         ))
                         .toList(),
                 request.transitions().stream()
@@ -90,7 +91,7 @@ public class SimulationGraphService {
                         ))
                         .toList(),
                 request.equipmentResources().stream()
-                        .map(equipment -> new SimulationGraphResponse.EquipmentResourceNode(
+                        .map(equipment -> new SimulationGraphResponse.EquipmentResource(
                                 equipment.id(),
                                 equipment.name(),
                                 equipment.type(),
@@ -161,15 +162,25 @@ public class SimulationGraphService {
         }
     }
 
-    private List<SimulationGraphResponse.ProcessingStateNode> mapStates(List<ProductionLineRequest.ProcessingState> states) {
+    private List<SimulationGraphResponse.ProcessingState> mapStates(List<ProductionLineRequest.ProcessingState> states) {
         return states.stream()
-                .map(state -> new SimulationGraphResponse.ProcessingStateNode(
+                .map(state -> new SimulationGraphResponse.ProcessingState(
                         state.z(),
                         state.meanProcessingTimeSeconds(),
                         state.standardDeviationSeconds(),
                         state.distributionType()
                 ))
                 .toList();
+    }
+
+
+    private List<SimulationGraphResponse.RiskCategory> buildRiskCategories(ProductionLineRequest.Operation operation) {
+        return List.of(
+                new SimulationGraphResponse.RiskCategory("man", mapStates(operation.manStates()), operation.eligibleManIds()),
+                new SimulationGraphResponse.RiskCategory("material", mapStates(operation.materialStates()), operation.eligibleMaterialIds()),
+                new SimulationGraphResponse.RiskCategory("machine", mapStates(operation.machineStates()), operation.eligibleMachineIds()),
+                new SimulationGraphResponse.RiskCategory("method", mapStates(operation.methodStates()), operation.eligibleMethodIds())
+        );
     }
 
     private List<String> topologicalSort(Map<String, List<String>> adjacency) {
