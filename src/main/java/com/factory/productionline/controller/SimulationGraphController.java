@@ -1,7 +1,7 @@
 package com.factory.productionline.controller;
 
 import com.factory.productionline.graph.ProductionLineRequest;
-import com.factory.productionline.graph.SimulationGraphResponse;
+import com.factory.productionline.graph.ProductionLineResponse;
 import com.factory.productionline.service.SimulationGraphService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -23,7 +23,7 @@ public class SimulationGraphController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.OK)
-    public SimulationGraphResponse buildSimulationGraph(@Valid @RequestBody ProductionLineRequest request) {
+    public ProductionLineResponse buildSimulationGraph(@Valid @RequestBody ProductionLineRequest request) {
         return simulationGraphService.buildGraph(request);
     }
 }
