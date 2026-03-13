@@ -20,7 +20,7 @@ public record SimulationGraphResponse(
             List<ProcessingState> methodStates,
             List<String> eligibleManIds,
             List<String> eligibleMaterialIds,
-            List<String> eligibleMachineIds,
+            List<Machine> eligibleMachines,
             List<String> eligibleMethodIds,
             List<RiskCategory> riskCategories
     ) {
@@ -38,6 +38,11 @@ public record SimulationGraphResponse(
             String category,
             List<ProcessingState> states,
             List<String> eligibleResourceIds
+    ) {
+    }
+
+    public record Machine(
+            String id
     ) {
     }
 

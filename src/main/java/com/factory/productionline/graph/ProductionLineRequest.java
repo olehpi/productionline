@@ -24,8 +24,14 @@ public record ProductionLineRequest(
             @NotEmpty List<@Valid ProcessingState> methodStates,
             @NotEmpty List<@NotBlank String> eligibleManIds,
             @NotEmpty List<@NotBlank String> eligibleMaterialIds,
-            @NotEmpty List<@NotBlank String> eligibleMachineIds,
+            @NotEmpty List<@Valid Machine> eligibleMachines,
             @NotEmpty List<@NotBlank String> eligibleMethodIds
+    ) {
+    }
+
+
+    public record Machine(
+            @NotBlank String id
     ) {
     }
 

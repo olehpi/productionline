@@ -32,7 +32,7 @@ class SimulationGraphControllerTest {
                       "methodStates": [{"z": 0, "meanProcessingTimeSeconds": 10.0, "standardDeviationSeconds": 1.5, "distributionType": "NORMAL"}, {"z": 1, "meanProcessingTimeSeconds": 12.0, "standardDeviationSeconds": 1.8, "distributionType": "UNIFORM"}],
                       "eligibleManIds": ["operator-a"],
                       "eligibleMaterialIds": ["material-a"],
-                      "eligibleMachineIds": ["drill-a", "drill-b"],
+                      "eligibleMachines": [{"id": "drill-a"}, {"id": "drill-b"}],
                       "eligibleMethodIds": ["method-drill"]
                     },
                     {
@@ -44,7 +44,7 @@ class SimulationGraphControllerTest {
                       "methodStates": [{"z": 0, "meanProcessingTimeSeconds": 20.0, "standardDeviationSeconds": 2.0, "distributionType": "LOGNORMAL"}, {"z": 1, "meanProcessingTimeSeconds": 24.0, "standardDeviationSeconds": 2.2, "distributionType": "NORMAL"}],
                       "eligibleManIds": ["operator-b"],
                       "eligibleMaterialIds": ["material-b"],
-                      "eligibleMachineIds": ["drill-c"],
+                      "eligibleMachines": [{"id": "drill-c"}],
                       "eligibleMethodIds": ["method-drill"]
                     },
                     {
@@ -56,7 +56,7 @@ class SimulationGraphControllerTest {
                       "methodStates": [{"z": 0, "meanProcessingTimeSeconds": 12.0, "standardDeviationSeconds": 1.0, "distributionType": "UNIFORM"}, {"z": 1, "meanProcessingTimeSeconds": 13.0, "standardDeviationSeconds": 1.2, "distributionType": "UNIFORM"}],
                       "eligibleManIds": ["operator-c"],
                       "eligibleMaterialIds": ["material-pack"],
-                      "eligibleMachineIds": ["pack-1"],
+                      "eligibleMachines": [{"id": "pack-1"}],
                       "eligibleMethodIds": ["method-pack"]
                     }
                   ],
@@ -83,7 +83,7 @@ class SimulationGraphControllerTest {
                 .andExpect(jsonPath("$.topologicalOrder[2]").value("pack"))
                 .andExpect(jsonPath("$.adjacency.drill-fast[0]").value("pack"))
                 .andExpect(jsonPath("$.nodes[0].machineStates[0].distributionType").value("NORMAL"))
-                .andExpect(jsonPath("$.nodes[0].eligibleMachineIds[0]").value("drill-a"))
+                .andExpect(jsonPath("$.nodes[0].eligibleMachines[0].id").value("drill-a"))
                 .andExpect(jsonPath("$.nodes[0].riskCategories[2].category").value("machine"))
                 .andExpect(jsonPath("$.nodes[0].riskCategories[2].eligibleResourceIds[0]").value("drill-a"))
                 .andExpect(jsonPath("$.equipmentResources[2].id").value("drill-c"));
@@ -103,7 +103,7 @@ class SimulationGraphControllerTest {
                       "methodStates": [{"z": 0, "meanProcessingTimeSeconds": 10.0, "standardDeviationSeconds": 1.5, "distributionType": "NORMAL"}, {"z": 1, "meanProcessingTimeSeconds": 12.0, "standardDeviationSeconds": 1.8, "distributionType": "UNIFORM"}],
                       "eligibleManIds": ["operator-a"],
                       "eligibleMaterialIds": ["material-a"],
-                      "eligibleMachineIds": ["drill-a", "drill-z"],
+                      "eligibleMachines": [{"id": "drill-a"}, {"id": "drill-z"}],
                       "eligibleMethodIds": ["method-drill"]
                     }
                   ],

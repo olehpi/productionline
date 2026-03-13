@@ -79,7 +79,7 @@ public class SimulationGraphService {
                                 mapStates(operation.methodStates()),
                                 operation.eligibleManIds(),
                                 operation.eligibleMaterialIds(),
-                                operation.eligibleMachineIds(),
+                                mapMachines(operation.eligibleMachines()),
                                 operation.eligibleMethodIds(),
                                 buildRiskCategories(operation)
                         ))
@@ -107,15 +107,15 @@ public class SimulationGraphService {
     private void validateResourceAssignments(List<ProductionLineRequest.Operation> operations,
                                              Map<String, ProductionLineRequest.EquipmentResource> equipmentById) {
         for (ProductionLineRequest.Operation operation : operations) {
-            validateUniqueAssignments(operation.id(), operation.eligibleMachineIds(), "machine");
+            validateUniqueMachineAssignments(operation.id(), operation.eligibleMachines());
             validateUniqueAssignments(operation.id(), operation.eligibleManIds(), "man");
             validateUniqueAssignments(operation.id(), operation.eligibleMaterialIds(), "material");
             validateUniqueAssignments(operation.id(), operation.eligibleMethodIds(), "method");
 
-            for (String machineId : operation.eligibleMachineIds()) {
-                if (!equipmentById.containsKey(machineId)) {
+            for (ProductionLineRequest.Machine machine : operation.eligibleMachines()) {
+                if (!equipmentById.containsKey(machine.id())) {
                     throw new IllegalArgumentException("Operation " + operation.id()
-                            + " references unknown machine: " + machineId);
+                            + " references unknown machine: " + machine.id());
                 }
             }
         }
@@ -162,6 +162,23 @@ public class SimulationGraphService {
         }
     }
 
+
+    private void validateUniqueMachineAssignments(String operationId, List<ProductionLineRequest.Machine> machines) {
+        Set<String> uniqueMachineIds = new HashSet<>();
+        for (ProductionLineRequest.Machine machine : machines) {
+            if (!uniqueMachineIds.add(machine.id())) {
+                throw new IllegalArgumentException("Operation " + operationId
+                        + " has duplicate machine assignment: " + machine.id());
+            }
+        }
+    }
+
+    private List<SimulationGraphResponse.Machine> mapMachines(List<ProductionLineRequest.Machine> machines) {
+        return machines.stream()
+                .map(machine -> new SimulationGraphResponse.Machine(machine.id()))
+                .toList();
+    }
+
     private List<SimulationGraphResponse.ProcessingState> mapStates(List<ProductionLineRequest.ProcessingState> states) {
         return states.stream()
                 .map(state -> new SimulationGraphResponse.ProcessingState(
@@ -178,7 +195,8 @@ public class SimulationGraphService {
         return List.of(
                 new SimulationGraphResponse.RiskCategory("man", mapStates(operation.manStates()), operation.eligibleManIds()),
                 new SimulationGraphResponse.RiskCategory("material", mapStates(operation.materialStates()), operation.eligibleMaterialIds()),
-                new SimulationGraphResponse.RiskCategory("machine", mapStates(operation.machineStates()), operation.eligibleMachineIds()),
+                new SimulationGraphResponse.RiskCategory("machine", mapStates(operation.machineStates()),
+                        operation.eligibleMachines().stream().map(ProductionLineRequest.Machine::id).toList()),
                 new SimulationGraphResponse.RiskCategory("method", mapStates(operation.methodStates()), operation.eligibleMethodIds())
         );
     }
