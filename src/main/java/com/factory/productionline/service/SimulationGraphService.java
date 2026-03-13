@@ -1,146 +1,50 @@
 package com.factory.productionline.service;
 
 import com.factory.productionline.graph.ProductionLineRequest;
-import com.factory.productionline.graph.SimulationGraphResponse;
+import com.factory.productionline.graph.ProductionLineResponse;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 public class SimulationGraphService {
 
-    public SimulationGraphResponse buildGraph(ProductionLineRequest request) {
-        Map<String, ProductionLineRequest.Operation> operationsById = request.operations().stream()
+    public ProductionLineResponse buildGraph(ProductionLineRequest request) {
+        Map<String, ProductionLineRequest.Operation> availableOperationsById = request.availableOperations().stream()
                 .collect(Collectors.toMap(
                         ProductionLineRequest.Operation::id,
-                        operation -> operation,
+                        Function.identity(),
                         (left, right) -> {
-                            throw new IllegalArgumentException("Duplicate operation id: " + left.id());
-                        },
-                        LinkedHashMap::new
+                            throw new IllegalArgumentException("Duplicate available operation id: " + left.id());
+                        }
                 ));
 
-        Map<String, ProductionLineRequest.EquipmentResource> equipmentById = request.equipmentResources().stream()
-                .collect(Collectors.toMap(
-                        ProductionLineRequest.EquipmentResource::id,
-                        equipment -> equipment,
-                        (left, right) -> {
-                            throw new IllegalArgumentException("Duplicate equipment id: " + left.id());
-                        },
-                        LinkedHashMap::new
-                ));
-
-        validateEquipmentAssignments(request.operations(), equipmentById);
-
-        Map<String, List<String>> adjacency = new LinkedHashMap<>();
-        request.operations().forEach(operation -> adjacency.put(operation.id(), new ArrayList<>()));
-
-        Set<String> seenEdges = new HashSet<>();
-        for (ProductionLineRequest.OperationTransition transition : request.transitions()) {
-            if (!operationsById.containsKey(transition.fromOperationId())) {
-                throw new IllegalArgumentException("Unknown source operation: " + transition.fromOperationId());
+        request.routes().forEach(route -> route.operationIds().forEach(operationId -> {
+            if (!availableOperationsById.containsKey(operationId)) {
+                throw new IllegalArgumentException("Route " + route.id() + " references unknown operation id: " + operationId);
             }
-            if (!operationsById.containsKey(transition.toOperationId())) {
-                throw new IllegalArgumentException("Unknown target operation: " + transition.toOperationId());
-            }
-            if (transition.fromOperationId().equals(transition.toOperationId())) {
-                throw new IllegalArgumentException("Self-loop is not supported for operation: " + transition.fromOperationId());
-            }
-            String edgeKey = transition.fromOperationId() + "->" + transition.toOperationId();
-            if (!seenEdges.add(edgeKey)) {
-                throw new IllegalArgumentException("Duplicate transition: " + edgeKey);
-            }
-            adjacency.get(transition.fromOperationId()).add(transition.toOperationId());
-        }
+        }));
 
-        adjacency.values().forEach(neighbours -> neighbours.sort(Comparator.naturalOrder()));
-
-        List<String> topologicalOrder = topologicalSort(adjacency);
-        boolean hasCycle = topologicalOrder.size() != operationsById.size();
-
-        return new SimulationGraphResponse(
-                request.operations().stream()
-                        .map(operation -> new SimulationGraphResponse.OperationNode(
+        return new ProductionLineResponse(
+                request.routes().stream()
+                        .map(route -> new ProductionLineResponse.Route(
+                                route.id(),
+                                route.name(),
+                                route.operationIds()
+                        ))
+                        .toList(),
+                request.availableOperations().stream()
+                        .map(operation -> new ProductionLineResponse.Operation(
                                 operation.id(),
                                 operation.name(),
-                                operation.meanProcessingTimeSeconds(),
-                                operation.standardDeviationSeconds(),
-                                operation.distributionType(),
-                                operation.eligibleEquipmentIds()
+                                operation.men().stream().map(ignored -> new ProductionLineResponse.Man()).toList(),
+                                operation.materials().stream().map(ignored -> new ProductionLineResponse.Material()).toList(),
+                                operation.machines().stream().map(ignored -> new ProductionLineResponse.Machine()).toList(),
+                                operation.methods().stream().map(ignored -> new ProductionLineResponse.Method()).toList()
                         ))
-                        .toList(),
-                request.transitions().stream()
-                        .map(transition -> new SimulationGraphResponse.OperationEdge(
-                                transition.fromOperationId(),
-                                transition.toOperationId()
-                        ))
-                        .toList(),
-                request.equipmentResources().stream()
-                        .map(equipment -> new SimulationGraphResponse.EquipmentResourceNode(
-                                equipment.id(),
-                                equipment.name(),
-                                equipment.type(),
-                                equipment.quantity()
-                        ))
-                        .toList(),
-                adjacency,
-                hasCycle,
-                hasCycle ? List.of() : topologicalOrder
+                        .toList()
         );
-    }
-
-    private void validateEquipmentAssignments(List<ProductionLineRequest.Operation> operations,
-                                              Map<String, ProductionLineRequest.EquipmentResource> equipmentById) {
-        for (ProductionLineRequest.Operation operation : operations) {
-            Set<String> uniqueEquipmentIds = new HashSet<>();
-            for (String equipmentId : operation.eligibleEquipmentIds()) {
-                if (!equipmentById.containsKey(equipmentId)) {
-                    throw new IllegalArgumentException("Operation " + operation.id()
-                            + " references unknown equipment: " + equipmentId);
-                }
-                if (!uniqueEquipmentIds.add(equipmentId)) {
-                    throw new IllegalArgumentException("Operation " + operation.id()
-                            + " has duplicate equipment assignment: " + equipmentId);
-                }
-            }
-        }
-    }
-
-    private List<String> topologicalSort(Map<String, List<String>> adjacency) {
-        Map<String, Integer> inDegree = new HashMap<>();
-        adjacency.forEach((node, ignored) -> inDegree.put(node, 0));
-
-        adjacency.forEach((ignored, neighbours) ->
-                neighbours.forEach(neighbour -> inDegree.computeIfPresent(neighbour, (ignoredKey, degree) -> degree + 1))
-        );
-
-        ArrayDeque<String> queue = inDegree.entrySet().stream()
-                .filter(entry -> entry.getValue() == 0)
-                .map(Map.Entry::getKey)
-                .sorted()
-                .collect(Collectors.toCollection(ArrayDeque::new));
-
-        List<String> order = new ArrayList<>();
-        while (!queue.isEmpty()) {
-            String current = queue.removeFirst();
-            order.add(current);
-
-            for (String neighbour : adjacency.getOrDefault(current, List.of())) {
-                int updated = inDegree.computeIfPresent(neighbour, (ignoredKey, degree) -> degree - 1);
-                if (updated == 0) {
-                    queue.addLast(neighbour);
-                }
-            }
-        }
-        return order;
     }
 }

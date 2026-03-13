@@ -1,4 +1,4 @@
-package com.factory.productionline.graph;
+package com.factory.productionline.model;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
 
-public record ProductionLineRequest(
+public record ProductionLine(
         @NotEmpty List<@Valid Route> routes,
         @NotEmpty List<@Valid Operation> availableOperations
 ) {

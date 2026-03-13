@@ -19,44 +19,33 @@ class SimulationGraphControllerTest {
     private MockMvc mockMvc;
 
     @Test
-    void buildGraphReturnsTopologyForValidPayload() throws Exception {
+    void buildGraphReturnsProductionLineForValidPayload() throws Exception {
         String payload = """
                 {
-                  "operations": [
+                  "routes": [
                     {
-                      "id": "drill-fast",
-                      "name": "Drilling",
-                      "meanProcessingTimeSeconds": 10.0,
-                      "standardDeviationSeconds": 1.5,
-                      "distributionType": "NORMAL",
-                      "eligibleEquipmentIds": ["drill-a", "drill-b"]
-                    },
-                    {
-                      "id": "drill-slow",
-                      "name": "Drilling",
-                      "meanProcessingTimeSeconds": 20.0,
-                      "standardDeviationSeconds": 2.0,
-                      "distributionType": "LOGNORMAL",
-                      "eligibleEquipmentIds": ["drill-c"]
-                    },
-                    {
-                      "id": "pack",
-                      "name": "Packaging",
-                      "meanProcessingTimeSeconds": 12.0,
-                      "standardDeviationSeconds": 1.0,
-                      "distributionType": "UNIFORM",
-                      "eligibleEquipmentIds": ["pack-1"]
+                      "id": "route-1",
+                      "name": "Main route",
+                      "operationIds": ["op-1", "op-2"]
                     }
                   ],
-                  "equipmentResources": [
-                    {"id": "drill-a", "name": "Drill machine A", "type": "DRILL", "quantity": 1},
-                    {"id": "drill-b", "name": "Drill machine B", "type": "DRILL", "quantity": 1},
-                    {"id": "drill-c", "name": "Legacy drill", "type": "DRILL", "quantity": 1},
-                    {"id": "pack-1", "name": "Pack station", "type": "PACKAGING", "quantity": 1}
-                  ],
-                  "transitions": [
-                    {"fromOperationId": "drill-fast", "toOperationId": "pack"},
-                    {"fromOperationId": "drill-slow", "toOperationId": "pack"}
+                  "availableOperations": [
+                    {
+                      "id": "op-1",
+                      "name": "Cutting",
+                      "men": [{}],
+                      "materials": [{}],
+                      "machines": [{}],
+                      "methods": [{}]
+                    },
+                    {
+                      "id": "op-2",
+                      "name": "Packaging",
+                      "men": [{}],
+                      "materials": [{}],
+                      "machines": [{}],
+                      "methods": [{}]
+                    }
                   ]
                 }
                 """;
@@ -65,35 +54,32 @@ class SimulationGraphControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.hasCycle").value(false))
-                .andExpect(jsonPath("$.topologicalOrder[0]").value("drill-fast"))
-                .andExpect(jsonPath("$.topologicalOrder[1]").value("drill-slow"))
-                .andExpect(jsonPath("$.topologicalOrder[2]").value("pack"))
-                .andExpect(jsonPath("$.adjacency.drill-fast[0]").value("pack"))
-                .andExpect(jsonPath("$.nodes[0].distributionType").value("NORMAL"))
-                .andExpect(jsonPath("$.nodes[0].eligibleEquipmentIds[0]").value("drill-a"))
-                .andExpect(jsonPath("$.equipmentResources[2].id").value("drill-c"));
+                .andExpect(jsonPath("$.routes[0].id").value("route-1"))
+                .andExpect(jsonPath("$.routes[0].operationIds[1]").value("op-2"))
+                .andExpect(jsonPath("$.availableOperations[0].id").value("op-1"))
+                .andExpect(jsonPath("$.availableOperations[0].men.length()").value(1));
     }
 
     @Test
-    void buildGraphReturnsBadRequestForUnknownEquipmentReference() throws Exception {
+    void buildGraphReturnsBadRequestForUnknownOperationReference() throws Exception {
         String payload = """
                 {
-                  "operations": [
+                  "routes": [
                     {
-                      "id": "drill-fast",
-                      "name": "Drilling",
-                      "meanProcessingTimeSeconds": 10.0,
-                      "standardDeviationSeconds": 1.5,
-                      "distributionType": "NORMAL",
-                      "eligibleEquipmentIds": ["drill-a", "drill-z"]
+                      "id": "route-1",
+                      "name": "Main route",
+                      "operationIds": ["op-unknown"]
                     }
                   ],
-                  "equipmentResources": [
-                    {"id": "drill-a", "name": "Drill machine A", "type": "DRILL", "quantity": 1}
-                  ],
-                  "transitions": [
-                    {"fromOperationId": "drill-fast", "toOperationId": "drill-fast"}
+                  "availableOperations": [
+                    {
+                      "id": "op-1",
+                      "name": "Cutting",
+                      "men": [{}],
+                      "materials": [{}],
+                      "machines": [{}],
+                      "methods": [{}]
+                    }
                   ]
                 }
                 """;
@@ -103,6 +89,6 @@ class SimulationGraphControllerTest {
                         .content(payload))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Invalid production line configuration"))
-                .andExpect(jsonPath("$.detail").value("Operation drill-fast references unknown equipment: drill-z"));
+                .andExpect(jsonPath("$.detail").value("Route route-1 references unknown operation id: op-unknown"));
     }
 }
