@@ -1,6 +1,7 @@
 package com.factory.productionline.graph;
 
 import java.util.List;
+import java.util.Map;
 
 public record ProductionLineResponse(
         List<Route> routes,
@@ -9,7 +10,7 @@ public record ProductionLineResponse(
     public record Route(
             String id,
             String name,
-            List<String> operationIds
+            Map<String, Map<String, Integer>> operationGraph
     ) {
     }
 

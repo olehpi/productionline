@@ -2,9 +2,9 @@ name: CI/CD
 
 on:
   push:
-    branches: [ main, develop, codex ]
+    branches: [ main, develop, dev ]
   pull_request:
-    branches: [ main, develop, codex ]
+    branches: [ main, develop, dev ]
 
 permissions:
   contents: read

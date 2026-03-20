@@ -26,7 +26,26 @@ class SimulationGraphControllerTest {
                     {
                       "id": "route-1",
                       "name": "Main route",
-                      "operationIds": ["op-1", "op-2"]
+                      "operationGraph": {
+                        "op-1": {
+                          "op-2": 1
+                        },
+                        "op-2": {
+                          "op-3": 1,
+                          "op-4": 1
+                        },
+                        "op-3": {
+                          "op-5": 1
+                        },
+                        "op-4": {
+                          "op-5": 1
+                        },
+                        "op-5": {
+                          "op-6": 1
+                        },
+                        "op-6": {
+                        }
+                      }
                     }
                   ],
                   "availableOperations": [
@@ -45,6 +64,38 @@ class SimulationGraphControllerTest {
                       "materials": [{}],
                       "machines": [{}],
                       "methods": [{}]
+                    },
+                    {
+                      "id": "op-3",
+                      "name": "Painting",
+                      "men": [{}],
+                      "materials": [{}],
+                      "machines": [{}],
+                      "methods": [{}]
+                    },
+                    {
+                      "id": "op-4",
+                      "name": "Inspection",
+                      "men": [{}],
+                      "materials": [{}],
+                      "machines": [{}],
+                      "methods": [{}]
+                    },
+                    {
+                      "id": "op-5",
+                      "name": "Assembly",
+                      "men": [{}],
+                      "materials": [{}],
+                      "machines": [{}],
+                      "methods": [{}]
+                    },
+                    {
+                      "id": "op-6",
+                      "name": "Dispatch",
+                      "men": [{}],
+                      "materials": [{}],
+                      "machines": [{}],
+                      "methods": [{}]
                     }
                   ]
                 }
@@ -55,7 +106,7 @@ class SimulationGraphControllerTest {
                         .content(payload))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.routes[0].id").value("route-1"))
-                .andExpect(jsonPath("$.routes[0].operationIds[1]").value("op-2"))
+                .andExpect(jsonPath("$.routes[0].operationGraph.op-2.op-4").value(1))
                 .andExpect(jsonPath("$.availableOperations[0].id").value("op-1"))
                 .andExpect(jsonPath("$.availableOperations[0].men.length()").value(1));
     }
@@ -68,7 +119,11 @@ class SimulationGraphControllerTest {
                     {
                       "id": "route-1",
                       "name": "Main route",
-                      "operationIds": ["op-unknown"]
+                      "operationGraph": {
+                        "op-unknown": {
+                          "op-1": 1
+                        }
+                      }
                     }
                   ],
                   "availableOperations": [

@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
+import java.util.Map;
 
 public record ProductionLine(
         @NotEmpty List<@Valid Route> routes,
@@ -13,7 +14,7 @@ public record ProductionLine(
     public record Route(
             @NotBlank String id,
             @NotBlank String name,
-            @NotEmpty List<@NotBlank String> operationIds
+            @NotEmpty Map<String, Map<String, Integer>> operationGraph
     ) {
     }
 
