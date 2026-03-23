@@ -22,6 +22,15 @@ public class SimulationGraphService {
     public ProductionLineResponse buildGraph(ProductionLineRequest request) {
         ProductionLine productionLine = productionLineMapper.toModel(request);
 
+        Map<String, ProductionLine.Bunker> availableBunkersById = productionLine.availableBunkers().stream()
+                .collect(Collectors.toMap(
+                        ProductionLine.Bunker::id,
+                        Function.identity(),
+                        (left, right) -> {
+                            throw new IllegalArgumentException("Duplicate available bunker id: " + left.id());
+                        }
+                ));
+
         Map<String, ProductionLine.Operation> availableOperationsById = productionLine.availableOperations().stream()
                 .collect(Collectors.toMap(
                         ProductionLine.Operation::id,
@@ -30,6 +39,10 @@ public class SimulationGraphService {
                             throw new IllegalArgumentException("Duplicate available operation id: " + left.id());
                         }
                 ));
+
+        productionLine.availableOperations().forEach(operation ->
+                operation.bunkerIds().forEach(bunkerId ->
+                        validateBunkerReference(operation.id(), bunkerId, availableBunkersById)));
 
         productionLine.routes().forEach(route -> route.operationGraph().forEach((sourceOperationId, targetOperations) -> {
             validateOperationReference(route.id(), sourceOperationId, availableOperationsById);
@@ -47,6 +60,16 @@ public class SimulationGraphService {
     ) {
         if (!availableOperationsById.containsKey(operationId)) {
             throw new IllegalArgumentException("Route " + routeId + " references unknown operation id: " + operationId);
+        }
+    }
+
+    private void validateBunkerReference(
+            String operationId,
+            String bunkerId,
+            Map<String, ProductionLine.Bunker> availableBunkersById
+    ) {
+        if (!availableBunkersById.containsKey(bunkerId)) {
+            throw new IllegalArgumentException("Operation " + operationId + " references unknown bunker id: " + bunkerId);
         }
     }
 }

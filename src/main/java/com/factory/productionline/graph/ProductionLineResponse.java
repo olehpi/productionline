@@ -5,6 +5,7 @@ import java.util.Map;
 
 public record ProductionLineResponse(
         List<Route> routes,
+        List<Bunker> availableBunkers,
         List<Operation> availableOperations
 ) {
     public record Route(
@@ -17,10 +18,21 @@ public record ProductionLineResponse(
     public record Operation(
             String id,
             String name,
+            List<String> bunkerIds,
+            List<Integer> inputIds,
+            List<Integer> outputIds,
             List<Man> men,
             List<Material> materials,
             List<Machine> machines,
             List<Method> methods
+    ) {
+    }
+
+    public record Bunker(
+            String id,
+            String name,
+            double size,
+            double maxSize
     ) {
     }
 

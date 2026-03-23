@@ -9,6 +9,7 @@ import java.util.Map;
 
 public record ProductionLineRequest(
         @NotEmpty List<@Valid Route> routes,
+        @NotEmpty List<@Valid Bunker> availableBunkers,
         @NotEmpty List<@Valid Operation> availableOperations
 ) {
     public record Route(
@@ -21,10 +22,21 @@ public record ProductionLineRequest(
     public record Operation(
             @NotBlank String id,
             @NotBlank String name,
+            @NotEmpty List<@NotBlank String> bunkerIds,
+            List<Integer> inputIds,
+            List<Integer> outputIds,
             @NotEmpty List<@Valid Man> men,
             @NotEmpty List<@Valid Material> materials,
             @NotEmpty List<@Valid Machine> machines,
             @NotEmpty List<@Valid Method> methods
+    ) {
+    }
+
+    public record Bunker(
+            @NotBlank String id,
+            @NotBlank String name,
+            double size,
+            double maxSize
     ) {
     }
 

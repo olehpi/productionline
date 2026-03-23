@@ -15,10 +15,21 @@ public class ProductionLineMapper {
                                 route.operationGraph()
                         ))
                         .toList(),
+                request.availableBunkers().stream()
+                        .map(bunker -> new ProductionLine.Bunker(
+                                bunker.id(),
+                                bunker.name(),
+                                bunker.size(),
+                                bunker.maxSize()
+                        ))
+                        .toList(),
                 request.availableOperations().stream()
                         .map(operation -> new ProductionLine.Operation(
                                 operation.id(),
                                 operation.name(),
+                                operation.bunkerIds(),
+                                operation.inputIds(),
+                                operation.outputIds(),
                                 operation.men().stream().map(ignored -> new ProductionLine.Man()).toList(),
                                 operation.materials().stream().map(ignored -> new ProductionLine.Material()).toList(),
                                 operation.machines().stream().map(ignored -> new ProductionLine.Machine()).toList(),
@@ -37,10 +48,21 @@ public class ProductionLineMapper {
                                 route.operationGraph()
                         ))
                         .toList(),
+                productionLine.availableBunkers().stream()
+                        .map(bunker -> new ProductionLineResponse.Bunker(
+                                bunker.id(),
+                                bunker.name(),
+                                bunker.size(),
+                                bunker.maxSize()
+                        ))
+                        .toList(),
                 productionLine.availableOperations().stream()
                         .map(operation -> new ProductionLineResponse.Operation(
                                 operation.id(),
                                 operation.name(),
+                                operation.bunkerIds(),
+                                operation.inputIds(),
+                                operation.outputIds(),
                                 operation.men().stream().map(ignored -> new ProductionLineResponse.Man()).toList(),
                                 operation.materials().stream().map(ignored -> new ProductionLineResponse.Material()).toList(),
                                 operation.machines().stream().map(ignored -> new ProductionLineResponse.Machine()).toList(),
