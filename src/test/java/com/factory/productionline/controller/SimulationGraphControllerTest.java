@@ -191,4 +191,31 @@ class SimulationGraphControllerTest {
                 .andExpect(jsonPath("$.title").value("Invalid production line configuration"))
                 .andExpect(jsonPath("$.detail").value("Route route-1 references unknown operation id: op-unknown"));
     }
+
+    @Test
+    void runLinearSimulationBuildsSequentialPipelineWithKafkaTransfers() throws Exception {
+        String payload = """
+                {
+                  "partsCount": 3,
+                  "operationsCount": 7,
+                  "batchId": "batch-42",
+                  "tauMean": 10.0,
+                  "tauSigma": 0.0,
+                  "randomSeed": 1
+                }
+                """;
+
+        mockMvc.perform(post("/api/simulation-graph/linear")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.operationTimelines.length()").value(7))
+                .andExpect(jsonPath("$.operationTimelines[0].events.length()").value(3))
+                .andExpect(jsonPath("$.operationTimelines[6].events.length()").value(3))
+                .andExpect(jsonPath("$.kafkaMessages.length()").value(18))
+                .andExpect(jsonPath("$.operationTimelines[0].events[0].startTau").value(0.0))
+                .andExpect(jsonPath("$.operationTimelines[0].events[0].finishTau").value(10.0))
+                .andExpect(jsonPath("$.operationTimelines[6].events[2].finishTau").value(90.0))
+                .andExpect(jsonPath("$.finalTau").value(90.0));
+    }
 }

@@ -1,7 +1,11 @@
 package com.factory.productionline.controller;
 
+import com.factory.productionline.graph.LinearSimulationRequest;
+import com.factory.productionline.graph.LinearSimulationResponse;
+import com.factory.productionline.graph.ProductionLineMapper;
 import com.factory.productionline.graph.ProductionLineRequest;
 import com.factory.productionline.graph.ProductionLineResponse;
+import com.factory.productionline.service.LinearProductionSimulationService;
 import com.factory.productionline.service.SimulationGraphService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -16,14 +20,32 @@ import org.springframework.web.bind.annotation.RestController;
 public class SimulationGraphController {
 
     private final SimulationGraphService simulationGraphService;
+    private final LinearProductionSimulationService linearProductionSimulationService;
+    private final ProductionLineMapper productionLineMapper;
 
-    public SimulationGraphController(SimulationGraphService simulationGraphService) {
+    public SimulationGraphController(
+            SimulationGraphService simulationGraphService,
+            LinearProductionSimulationService linearProductionSimulationService,
+            ProductionLineMapper productionLineMapper
+    ) {
         this.simulationGraphService = simulationGraphService;
+        this.linearProductionSimulationService = linearProductionSimulationService;
+        this.productionLineMapper = productionLineMapper;
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.OK)
     public ProductionLineResponse buildSimulationGraph(@Valid @RequestBody ProductionLineRequest request) {
         return simulationGraphService.buildGraph(request);
+    }
+
+    @PostMapping("/linear")
+    @ResponseStatus(HttpStatus.OK)
+    public LinearSimulationResponse runLinearSimulation(@Valid @RequestBody LinearSimulationRequest request) {
+        return productionLineMapper.toResponse(
+                linearProductionSimulationService.simulate(
+                        productionLineMapper.toModel(request)
+                )
+        );
     }
 }

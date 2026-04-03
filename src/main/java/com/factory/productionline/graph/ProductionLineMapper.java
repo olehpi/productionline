@@ -71,4 +71,47 @@ public class ProductionLineMapper {
                         .toList()
         );
     }
+
+    public ProductionLine.LinearSimulationInput toModel(LinearSimulationRequest request) {
+        return new ProductionLine.LinearSimulationInput(
+                request.partsCount(),
+                request.operationsCount(),
+                request.batchId(),
+                request.tauMean(),
+                request.tauSigma(),
+                request.randomSeed()
+        );
+    }
+
+    public LinearSimulationResponse toResponse(ProductionLine.LinearSimulationResult result) {
+        return new LinearSimulationResponse(
+                result.finalTau(),
+                result.operationTimelines().stream()
+                        .map(timeline -> new LinearSimulationResponse.OperationTimeline(
+                                timeline.operationNumber(),
+                                timeline.events().stream()
+                                        .map(event -> new LinearSimulationResponse.PartProcessingEvent(
+                                                event.partNumber(),
+                                                event.batchId(),
+                                                event.startTau(),
+                                                event.processingTau(),
+                                                event.finishTau()
+                                        ))
+                                        .toList()
+                        ))
+                        .toList(),
+                result.kafkaMessages().stream()
+                        .map(message -> new LinearSimulationResponse.KafkaTransferMessage(
+                                message.fromOperation(),
+                                message.toOperation(),
+                                message.partNumber(),
+                                message.batchId(),
+                                message.processingStartTau(),
+                                message.processingTau(),
+                                message.availableAtTau()
+                        ))
+                        .toList()
+        );
+    }
+
 }

@@ -51,4 +51,49 @@ public record ProductionLine(
 
     public record Method() {
     }
+
+
+    public record LinearSimulationInput(
+            int partsCount,
+            int operationsCount,
+            String batchId,
+            double tauMean,
+            double tauSigma,
+            Long randomSeed
+    ) {
+    }
+
+    public record LinearSimulationResult(
+            double finalTau,
+            List<LinearOperationTimeline> operationTimelines,
+            List<KafkaTransferMessage> kafkaMessages
+    ) {
+    }
+
+    public record LinearOperationTimeline(
+            int operationNumber,
+            List<PartProcessingEvent> events
+    ) {
+    }
+
+    public record PartProcessingEvent(
+            int partNumber,
+            String batchId,
+            double startTau,
+            double processingTau,
+            double finishTau
+    ) {
+    }
+
+    public record KafkaTransferMessage(
+            int fromOperation,
+            int toOperation,
+            int partNumber,
+            String batchId,
+            double processingStartTau,
+            double processingTau,
+            double availableAtTau
+    ) {
+    }
+
 }
