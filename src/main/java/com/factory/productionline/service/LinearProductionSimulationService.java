@@ -23,8 +23,12 @@ public class LinearProductionSimulationService {
     }
 
     public ProductionLine.LinearSimulationResult simulate(ProductionLine.LinearSimulationInput input) {
-        int operationsCount = input.operationsCount();
+        List<ProductionLine.LinearOperationInput> processingOperationInputs = input.operations().stream()
+                .filter(operationInput -> !isStoreOperation(operationInput))
+                .toList();
+        int operationsCount = processingOperationInputs.size();
         int partsCount = input.partsCount();
+        validateOperationsInput(input, processingOperationInputs);
 
         transferEventPublisher.ensureTopics(operationsCount);
 
@@ -51,12 +55,25 @@ public class LinearProductionSimulationService {
                         .thenComparingLong(ProcessingCompletionEvent::sequence)
         );
 
-        Random random = input.randomSeed() == null ? new Random() : new Random(input.randomSeed());
+        List<Random> randomsByOperation = processingOperationInputs.stream()
+                .map(operationInput -> operationInput.randomSeed() == null
+                        ? new Random()
+                        : new Random(operationInput.randomSeed()))
+                .toList();
         long sequence = 0L;
-        sequence = tryStartOperation(0, 0d, input, bunkers, machineBusyUntil, completionEvents, random, sequence);
+        sequence = tryStartOperation(
+                0,
+                input.startTau(),
+                processingOperationInputs,
+                bunkers,
+                machineBusyUntil,
+                completionEvents,
+                randomsByOperation,
+                sequence
+        );
 
         int completedAtLastOperation = 0;
-        double finalTau = 0d;
+        double finalTau = input.startTau();
         while (!completionEvents.isEmpty() && completedAtLastOperation < partsCount) {
             ProcessingCompletionEvent completionEvent = completionEvents.poll();
             finalTau = completionEvent.finishTau();
@@ -93,10 +110,28 @@ public class LinearProductionSimulationService {
                 transferTopics.get(topicKey).offer(transferMessage);
                 drainTopicToBunker(transferTopics.get(topicKey), finalTau, bunkers.get(nextOperationIndex));
 
-                sequence = tryStartOperation(nextOperationIndex, finalTau, input, bunkers, machineBusyUntil, completionEvents, random, sequence);
+                sequence = tryStartOperation(
+                        nextOperationIndex,
+                        finalTau,
+                        processingOperationInputs,
+                        bunkers,
+                        machineBusyUntil,
+                        completionEvents,
+                        randomsByOperation,
+                        sequence
+                );
             }
 
-            sequence = tryStartOperation(operationIndex, finalTau, input, bunkers, machineBusyUntil, completionEvents, random, sequence);
+            sequence = tryStartOperation(
+                    operationIndex,
+                    finalTau,
+                    processingOperationInputs,
+                    bunkers,
+                    machineBusyUntil,
+                    completionEvents,
+                    randomsByOperation,
+                    sequence
+            );
         }
 
         List<ProductionLine.LinearOperationTimeline> timelines = new ArrayList<>(operationsCount);
@@ -135,11 +170,11 @@ public class LinearProductionSimulationService {
     private long tryStartOperation(
             int operationIndex,
             double currentTau,
-            ProductionLine.LinearSimulationInput input,
+            List<ProductionLine.LinearOperationInput> operationInputs,
             List<Queue<Integer>> bunkers,
             double[] machineBusyUntil,
             PriorityQueue<ProcessingCompletionEvent> completionEvents,
-            Random random,
+            List<Random> randomsByOperation,
             long sequence
     ) {
         if (machineBusyUntil[operationIndex] > currentTau || bunkers.get(operationIndex).isEmpty()) {
@@ -151,7 +186,12 @@ public class LinearProductionSimulationService {
             return sequence;
         }
 
-        double processingTau = sampleNormalBounded(input.tauMean(), input.tauSigma(), random);
+        ProductionLine.LinearOperationInput operationInput = operationInputs.get(operationIndex);
+        double processingTau = sampleNormalBounded(
+                operationInput.tauMean(),
+                operationInput.tauSigma(),
+                randomsByOperation.get(operationIndex)
+        );
         double startTau = Math.max(currentTau, machineBusyUntil[operationIndex]);
         double finishTau = startTau + processingTau;
         machineBusyUntil[operationIndex] = finishTau;
@@ -175,6 +215,68 @@ public class LinearProductionSimulationService {
 
         double sampled = mean + random.nextGaussian() * sigma;
         return Math.max(0.000001d, sampled);
+    }
+
+    private void validateOperationsInput(
+            ProductionLine.LinearSimulationInput input,
+            List<ProductionLine.LinearOperationInput> processingOperationInputs
+    ) {
+        if (processingOperationInputs.size() != input.operationsCount()) {
+            throw new IllegalArgumentException(
+                    "operationsCount must match count of non-store operations: expected "
+                            + input.operationsCount()
+                            + ", got "
+                            + processingOperationInputs.size()
+            );
+        }
+        if (input.finishTau() < input.startTau()) {
+            throw new IllegalArgumentException(
+                    "finishTau must be greater than or equal to startTau: startTau="
+                            + input.startTau()
+                            + ", finishTau="
+                            + input.finishTau()
+            );
+        }
+        boolean hasStartStore = input.operations().stream().anyMatch(this::isStartStoreOperation);
+        boolean hasFinishStore = input.operations().stream().anyMatch(this::isFinishStoreOperation);
+        if (!hasStartStore || !hasFinishStore) {
+            throw new IllegalArgumentException("operations must include startStore and finishStore");
+        }
+
+        ProductionLine.LinearOperationInput startStore = input.operations().stream()
+                .filter(this::isStartStoreOperation)
+                .findFirst()
+                .orElseThrow();
+        if (startStore.id() != 0) {
+            throw new IllegalArgumentException("startStore id must be 0");
+        }
+
+        ProductionLine.LinearOperationInput finishStore = input.operations().stream()
+                .filter(this::isFinishStoreOperation)
+                .findFirst()
+                .orElseThrow();
+        int expectedFinishStoreId = input.operationsCount() + 1;
+        if (finishStore.id() != expectedFinishStoreId) {
+            throw new IllegalArgumentException(
+                    "finishStore id must be operationsCount + 1: expected "
+                            + expectedFinishStoreId
+                            + ", got "
+                            + finishStore.id()
+            );
+        }
+    }
+
+    private boolean isStoreOperation(ProductionLine.LinearOperationInput operationInput) {
+        return isStartStoreOperation(operationInput) || isFinishStoreOperation(operationInput);
+    }
+
+    private boolean isStartStoreOperation(ProductionLine.LinearOperationInput operationInput) {
+        return "startStore".equalsIgnoreCase(operationInput.name());
+    }
+
+    private boolean isFinishStoreOperation(ProductionLine.LinearOperationInput operationInput) {
+        return "finishStore".equalsIgnoreCase(operationInput.name())
+                || "finishtStore".equalsIgnoreCase(operationInput.name());
     }
 
     private record ProcessingCompletionEvent(

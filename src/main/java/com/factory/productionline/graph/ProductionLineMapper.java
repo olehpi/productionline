@@ -77,9 +77,17 @@ public class ProductionLineMapper {
                 request.partsCount(),
                 request.operationsCount(),
                 request.batchId(),
-                request.tauMean(),
-                request.tauSigma(),
-                request.randomSeed()
+                request.startTau(),
+                request.finishTau(),
+                request.operations().stream()
+                        .map(operationInput -> new ProductionLine.LinearOperationInput(
+                                operationInput.id(),
+                                operationInput.name(),
+                                operationInput.tauMean(),
+                                operationInput.tauSigma(),
+                                operationInput.randomSeed()
+                        ))
+                        .toList()
         );
     }
 

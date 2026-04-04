@@ -57,6 +57,15 @@ public record ProductionLine(
             int partsCount,
             int operationsCount,
             String batchId,
+            double startTau,
+            double finishTau,
+            List<LinearOperationInput> operations
+    ) {
+    }
+
+    public record LinearOperationInput(
+            int id,
+            String name,
             double tauMean,
             double tauSigma,
             Long randomSeed
