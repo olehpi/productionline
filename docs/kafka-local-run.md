@@ -75,13 +75,26 @@ This generates `docker-compose.operations.yml` with services like:
 
 Each operation service gets its own `operation-id`, `next-operation-id`, `tauMean`, `tauSigma`, and `randomSeed` from JSON.
 
-### Step C. Start all services
+### Step C. One-command startup (recommended)
+
+Instead of manually running generation + compose, you can use wrapper script:
+
+```bash
+scripts/run_distributed_flow.sh linear-flow.json
+```
+
+What it does:
+1. validates the JSON flow (startStore/finishStore and sequential operation IDs),
+2. generates `docker-compose.operations.yml`,
+3. starts `docker compose -f docker-compose.yml -f docker-compose.operations.yml up --build`.
+
+### Step D. Start all services manually (alternative)
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.operations.yml up --build
 ```
 
-### Step D. Start batch flow through Kafka
+### Step E. Start batch flow through Kafka
 
 Use API endpoint that initializes topics and sends first parts from `startStore` to operation 1:
 
