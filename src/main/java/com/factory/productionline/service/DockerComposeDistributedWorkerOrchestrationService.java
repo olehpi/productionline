@@ -17,7 +17,7 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Component
-@ConditionalOnProperty(name = "simulation.orchestration.mode", havingValue = "docker")
+@ConditionalOnProperty(name = "simulation.orchestration.from-api.enabled", havingValue = "true")
 public class DockerComposeDistributedWorkerOrchestrationService implements DistributedWorkerOrchestrationService {
 
     private final DistributedComposeGenerator distributedComposeGenerator;

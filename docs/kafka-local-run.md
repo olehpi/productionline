@@ -149,19 +149,13 @@ If you want `POST /api/simulation-graph/linear` to automatically:
 3. wait until they are running,
 4. publish start batch messages to Kafka,
 
-set orchestration mode:
+enable property:
 
 ```properties
-# inprocess | docker | none
-simulation.orchestration.mode=inprocess
+simulation.orchestration.from-api.enabled=true
 ```
 
-Mode details:
-- `inprocess` (default): workers are created dynamically inside API process (works with plain `docker compose up --build`).
-- `docker`: API runs `docker compose` to start worker containers automatically.
-- `none`: disable orchestration and keep only historical local simulation behavior on `/linear`.
-
-Optional tuning (used by `docker` mode):
+Optional tuning:
 
 ```properties
 simulation.orchestration.compose.project-dir=.
@@ -171,5 +165,4 @@ simulation.orchestration.workers.ready-timeout-ms=120000
 simulation.orchestration.workers.ready-poll-interval-ms=3000
 ```
 
-> Important for `docker` mode: if API itself runs inside Docker container, orchestration needs Docker CLI + daemon access inside that container (for example mounting `/var/run/docker.sock` and providing `docker` binary). Without this, `/linear` may fail during worker auto-start.
-
+When disabled (default), `/linear` keeps legacy single-service behavior.
