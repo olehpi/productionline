@@ -59,24 +59,24 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
             throw new IllegalStateException("Failed to write compose override file: " + overridePath, exception);
         }
 
+        List<String> expectedServices = expectedWorkerServices(input);
+
+        List<String> upCommand = new ArrayList<>(List.of(
+                "docker", "compose", "-f", composeBaseFile, "-f", composeOverrideFile, "up", "--build", "-d"
+        ));
+        upCommand.addAll(expectedServices);
+
         runCommand(projectDir,
-                List.of("docker", "compose", "-f", composeBaseFile, "-f", composeOverrideFile, "up", "--build", "-d"),
+                upCommand,
                 "Failed to start operation workers with docker compose"
         );
 
-        waitForWorkers(projectDir, input);
+        waitForWorkers(projectDir, expectedServices);
 
         distributedSimulationLauncher.start(input);
     }
 
-    private void waitForWorkers(Path projectDir, ProductionLine.LinearSimulationInput input) {
-        List<String> expectedServices = input.operations().stream()
-                .filter(operation -> !isStore(operation.name()))
-                .map(operation -> "productionline-operation" + operation.id() + "-app")
-                .sorted()
-                .collect(Collectors.toCollection(ArrayList::new));
-        expectedServices.add("productionline-finish-store-app");
-
+    private void waitForWorkers(Path projectDir, List<String> expectedServices) {
         Instant deadline = Instant.now().plus(Duration.ofMillis(readyTimeoutMillis));
         while (Instant.now().isBefore(deadline)) {
             String output = runCommand(projectDir,
@@ -95,6 +95,17 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
         }
 
         throw new IllegalStateException("Timed out waiting for distributed workers readiness");
+    }
+
+
+    private List<String> expectedWorkerServices(ProductionLine.LinearSimulationInput input) {
+        List<String> services = input.operations().stream()
+                .filter(operation -> !isStore(operation.name()))
+                .map(operation -> "productionline-operation" + operation.id() + "-app")
+                .sorted()
+                .collect(Collectors.toCollection(ArrayList::new));
+        services.add("productionline-finish-store-app");
+        return services;
     }
 
     private String runCommand(Path projectDir, List<String> command, String failureMessage) {
