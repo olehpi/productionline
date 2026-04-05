@@ -61,8 +61,8 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
                 throw new IllegalStateException("Failed to write compose override file: " + overridePath, exception);
             }
 
-            runCommand(projectDir,
-                    List.of("docker", "compose", "-f", composeBaseFile, "-f", composeOverrideFile, "up", "--build", "-d"),
+            runComposeCommand(projectDir,
+                    List.of("-f", composeBaseFile, "-f", composeOverrideFile, "up", "--build", "-d"),
                     "Failed to start operation workers with docker compose"
             );
         }
@@ -101,8 +101,8 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
     }
 
     private List<String> runningServices(Path projectDir) {
-        String output = runCommand(projectDir,
-                List.of("docker", "compose", "-f", composeBaseFile, "-f", composeOverrideFile,
+        String output = runComposeCommand(projectDir,
+                List.of("-f", composeBaseFile, "-f", composeOverrideFile,
                         "ps", "--services", "--status", "running"),
                 "Failed to read running docker compose services"
         );
@@ -110,6 +110,37 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
                 .map(String::trim)
                 .filter(line -> !line.isBlank())
                 .toList();
+    }
+
+
+    private String runComposeCommand(Path projectDir, List<String> composeArguments, String failureMessage) {
+        try {
+            List<String> dockerComposeV2 = new ArrayList<>();
+            dockerComposeV2.add("docker");
+            dockerComposeV2.add("compose");
+            dockerComposeV2.addAll(composeArguments);
+            return runCommand(projectDir, dockerComposeV2, failureMessage);
+        } catch (IllegalStateException primaryException) {
+            if (!isComposePluginMissing(primaryException)) {
+                throw primaryException;
+            }
+
+            List<String> dockerComposeV1 = new ArrayList<>();
+            dockerComposeV1.add("docker-compose");
+            dockerComposeV1.addAll(composeArguments);
+            return runCommand(projectDir, dockerComposeV1, failureMessage);
+        }
+    }
+
+    private boolean isComposePluginMissing(IllegalStateException exception) {
+        String message = exception.getMessage();
+        if (message == null) {
+            return false;
+        }
+        String normalized = message.toLowerCase(Locale.ROOT);
+        return normalized.contains("docker: 'compose' is not a docker command")
+                || normalized.contains("docker-compose-plugin")
+                || normalized.contains("unknown command \"compose\"");
     }
 
     private String runCommand(Path projectDir, List<String> command, String failureMessage) {
