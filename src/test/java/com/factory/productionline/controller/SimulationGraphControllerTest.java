@@ -192,6 +192,34 @@ class SimulationGraphControllerTest {
                 .andExpect(jsonPath("$.detail").value("Route route-1 references unknown operation id: op-unknown"));
     }
 
+
+    @Test
+    void generateDistributedComposeFromLinearPayload() throws Exception {
+        String payload = """
+                {
+                  "partsCount": 3,
+                  "operationsCount": 2,
+                  "batchId": "batch-42",
+                  "startTau": 0.0,
+                  "finishTau": 30.0,
+                  "operations": [
+                    { "id": 0, "name": "startStore", "tauMean": 0.0, "tauSigma": 0.0, "randomSeed": 0 },
+                    { "id": 1, "name": "Op01", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 1 },
+                    { "id": 2, "name": "Op02", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 2 },
+                    { "id": 3, "name": "finishStore", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 0 }
+                  ]
+                }
+                """;
+
+        mockMvc.perform(post("/api/simulation-graph/linear/distributed/compose")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.composeFileName").value("docker-compose.operations.yml"))
+                .andExpect(jsonPath("$.composeYaml").value(org.hamcrest.Matchers.containsString("productionline-operation1-app")))
+                .andExpect(jsonPath("$.composeYaml").value(org.hamcrest.Matchers.containsString("productionline-finish-store-app")));
+    }
+
     @Test
     void runLinearSimulationBuildsSequentialPipelineWithKafkaTransfers() throws Exception {
         String payload = """

@@ -34,6 +34,12 @@ services:
         condition: service_healthy
     ports:
       - "8080:8080"
+    working_dir: /workspace/productionline
+    volumes:
+      - ./:/workspace/productionline
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - SIMULATION_KAFKA_ENABLED=true
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SIMULATION_ORCHESTRATION_FROM_API_ENABLED=true
+      - SIMULATION_ORCHESTRATION_COMPOSE_PROJECT_DIR=/workspace/productionline

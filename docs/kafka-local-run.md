@@ -17,9 +17,14 @@ Start base services:
 docker compose up --build
 ```
 
+
+> ⚠️ `docker compose up --build` (without override) starts only `kafka` and `productionline-app`.
+> Operation workers are **not** part of the base compose file and will not appear in `docker compose ps` until you add the generated override file.
+
 The API service has Kafka publishing enabled in compose:
 - `SIMULATION_KAFKA_ENABLED=true`
 - `SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092`
+- `SIMULATION_ORCHESTRATION_FROM_API_ENABLED=true` (for local compose run)
 
 ## 2) Single-service linear simulation (existing behavior)
 
@@ -62,6 +67,25 @@ Create `linear-flow.json`:
 
 ### Step B. Generate dynamic compose override
 
+If your `linear-flow` is already sent to API, use the same payload for compose generation endpoint:
+
+```bash
+curl -X POST http://localhost:8080/api/simulation-graph/linear/distributed/compose \
+  -H 'Content-Type: application/json' \
+  -d @linear-flow.json
+```
+
+Response contains `composeYaml` (content of `docker-compose.operations.yml`).
+You can save it directly:
+
+```bash
+curl -s -X POST http://localhost:8080/api/simulation-graph/linear/distributed/compose \
+  -H 'Content-Type: application/json' \
+  -d @linear-flow.json | jq -r ' .composeYaml ' > _docker-compose.operations.yml
+```
+
+Alternatively, file-based generator still works:
+
 ```bash
 python3 scripts/generate_compose_for_linear_flow.py --input linear-flow.json
 ```
@@ -91,7 +115,7 @@ What it does:
 ### Step D. Start all services manually (alternative)
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.operations.yml up --build
+docker compose -f docker-compose.yml -f _docker-compose.operations.yml up --build
 ```
 
 ### Step E. Start batch flow through Kafka
@@ -120,3 +144,52 @@ Operation workers consume/produce messages hop-by-hop:
 - `line-op-1-to-2` -> `Op02`
 - ...
 - `line-op-7-to-8` -> `finishStore`
+
+
+## 4) API orchestration mode (auto-start workers from `/linear`)
+
+If you want `POST /api/simulation-graph/linear` to automatically:
+1. generate/update worker compose override,
+2. start missing worker services,
+3. wait until they are running,
+4. publish start batch messages to Kafka,
+
+enable property:
+
+```properties
+simulation.orchestration.from-api.enabled=true
+```
+
+Optional tuning:
+
+```properties
+simulation.orchestration.compose.project-dir=.
+simulation.orchestration.compose.base-file=docker-compose.yml
+simulation.orchestration.compose.override-file=docker-compose.operations.yml
+simulation.orchestration.compose.worker-image=productionline-productionline
+simulation.orchestration.workers.ready-timeout-ms=120000
+simulation.orchestration.workers.ready-poll-interval-ms=3000
+```
+
+When disabled (default), `/linear` keeps legacy single-service behavior.
+
+> In the provided `docker-compose.yml` for local run, orchestration is explicitly enabled via env var, so `/linear` auto-starts missing worker services.
+> In orchestration mode workers reuse the already built local image `productionline-productionline`, so the API does not rebuild images during `POST /linear`.
+
+
+### Why `/api/simulation-graph/linear` can return 500 in orchestration mode
+
+If you enabled:
+
+```properties
+simulation.orchestration.from-api.enabled=true
+```
+
+then `/linear` tries to run `docker compose ...` from inside the `productionline-app` container.
+In a default local setup, that container does not have Docker CLI/socket access, so orchestration can fail with HTTP 500.
+
+Use one of these approaches:
+
+1. Keep orchestration disabled (default) and run distributed workers manually via override compose (`-f docker-compose.operations.yml`).
+2. Run `scripts/run_distributed_flow.sh linear-flow.json` from host.
+3. If you need API-driven orchestration from container, provide Docker access to the app container explicitly (Docker socket/CLI).

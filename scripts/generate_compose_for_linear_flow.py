@@ -132,7 +132,7 @@ def main() -> None:
     parser.add_argument("--input", required=True, help="Path to linear simulation JSON")
     parser.add_argument(
         "--output",
-        default="docker-compose.operations.yml",
+        default="_docker-compose.operations.yml",
         help="Output docker-compose override file",
     )
     args = parser.parse_args()
