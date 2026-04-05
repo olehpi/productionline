@@ -12,6 +12,10 @@ FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends docker.io docker-compose-plugin \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=builder /workspace/build/libs/*.jar /app/app.jar
 
 EXPOSE 8080

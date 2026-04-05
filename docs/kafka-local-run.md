@@ -1,29 +1,24 @@
-# Running linear simulation with Kafka via Docker Compose
+# Running production line with Kafka
 
-This project includes `docker-compose.yml` with:
-- `kafka` (KRaft, single node)
-- `productionline` app
+## What starts with `docker compose up --build`
 
-## Start
+`docker-compose.yml` starts:
+- `kafka`
+- `productionline-app` API (`localhost:8080`)
+
+The API container has auto-provision enabled:
+- mounts project directory and Docker socket
+- on `POST /api/simulation-graph/linear` it generates `docker-compose.operations.auto.yml`
+- runs `docker compose -f docker-compose.yml -f docker-compose.operations.auto.yml up -d --build`
+- so operation workers are created automatically if they are missing
+
+## Run
 
 ```bash
 docker compose up --build
 ```
 
-## What is enabled in compose
-
-`productionline` service sets:
-- `SIMULATION_KAFKA_ENABLED=true`
-- `SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092`
-
-So linear simulation transfer events are published to Kafka topics:
-- `line-op-1-to-2`
-- `line-op-2-to-3`
-- ...
-
-Topics are created automatically by the app when simulation starts.
-
-## Example request
+## Start simulation (this now also auto-creates workers)
 
 ```bash
 curl -X POST http://localhost:8080/api/simulation-graph/linear \
@@ -46,4 +41,10 @@ curl -X POST http://localhost:8080/api/simulation-graph/linear \
       { "id": 8, "name": "finishStore", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 0 }
     ]
   }'
+```
+
+Check workers:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.operations.auto.yml ps
 ```

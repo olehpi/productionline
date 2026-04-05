@@ -17,12 +17,19 @@ import java.util.Random;
 public class LinearProductionSimulationService {
 
     private final TransferEventPublisher transferEventPublisher;
+    private final DistributedWorkerProvisioner distributedWorkerProvisioner;
 
-    public LinearProductionSimulationService(TransferEventPublisher transferEventPublisher) {
+    public LinearProductionSimulationService(
+            TransferEventPublisher transferEventPublisher,
+            DistributedWorkerProvisioner distributedWorkerProvisioner
+    ) {
         this.transferEventPublisher = transferEventPublisher;
+        this.distributedWorkerProvisioner = distributedWorkerProvisioner;
     }
 
     public ProductionLine.LinearSimulationResult simulate(ProductionLine.LinearSimulationInput input) {
+        distributedWorkerProvisioner.ensureWorkers(input);
+
         List<ProductionLine.LinearOperationInput> processingOperationInputs = input.operations().stream()
                 .filter(operationInput -> !isStoreOperation(operationInput))
                 .toList();

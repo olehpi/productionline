@@ -37,3 +37,9 @@ services:
     environment:
       - SIMULATION_KAFKA_ENABLED=true
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SIMULATION_DISTRIBUTED_AUTO_PROVISION_ENABLED=true
+      - SIMULATION_DISTRIBUTED_AUTO_PROVISION_WORKDIR=/workspace/productionline
+      - SIMULATION_DISTRIBUTED_AUTO_PROVISION_DOCKER_COMMAND=docker
+    volumes:
+      - .:/workspace/productionline
+      - /var/run/docker.sock:/var/run/docker.sock
