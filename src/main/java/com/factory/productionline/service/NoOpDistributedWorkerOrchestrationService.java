@@ -1,0 +1,15 @@
+package com.factory.productionline.service;
+
+import com.factory.productionline.model.ProductionLine;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+
+@Component
+@ConditionalOnProperty(name = "simulation.orchestration.from-api.enabled", havingValue = "false", matchIfMissing = true)
+public class NoOpDistributedWorkerOrchestrationService implements DistributedWorkerOrchestrationService {
+
+    @Override
+    public void ensureWorkersAndStartBatch(ProductionLine.LinearSimulationInput input) {
+        // no-op: keep historical /linear behavior (single-service simulation only)
+    }
+}
