@@ -1,10 +1,12 @@
 package com.factory.productionline.controller;
 
+import com.factory.productionline.graph.DistributedSimulationStartResponse;
 import com.factory.productionline.graph.LinearSimulationRequest;
 import com.factory.productionline.graph.LinearSimulationResponse;
 import com.factory.productionline.graph.ProductionLineMapper;
 import com.factory.productionline.graph.ProductionLineRequest;
 import com.factory.productionline.graph.ProductionLineResponse;
+import com.factory.productionline.service.DistributedSimulationLauncher;
 import com.factory.productionline.service.LinearProductionSimulationService;
 import com.factory.productionline.service.SimulationGraphService;
 import jakarta.validation.Valid;
@@ -22,15 +24,18 @@ public class SimulationGraphController {
     private final SimulationGraphService simulationGraphService;
     private final LinearProductionSimulationService linearProductionSimulationService;
     private final ProductionLineMapper productionLineMapper;
+    private final DistributedSimulationLauncher distributedSimulationLauncher;
 
     public SimulationGraphController(
             SimulationGraphService simulationGraphService,
             LinearProductionSimulationService linearProductionSimulationService,
-            ProductionLineMapper productionLineMapper
+            ProductionLineMapper productionLineMapper,
+            DistributedSimulationLauncher distributedSimulationLauncher
     ) {
         this.simulationGraphService = simulationGraphService;
         this.linearProductionSimulationService = linearProductionSimulationService;
         this.productionLineMapper = productionLineMapper;
+        this.distributedSimulationLauncher = distributedSimulationLauncher;
     }
 
     @PostMapping
@@ -48,4 +53,11 @@ public class SimulationGraphController {
                 )
         );
     }
+
+    @PostMapping("/linear/distributed/start")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public DistributedSimulationStartResponse startDistributedLinearSimulation(@Valid @RequestBody LinearSimulationRequest request) {
+        return distributedSimulationLauncher.start(productionLineMapper.toModel(request));
+    }
 }
+
