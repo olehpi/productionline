@@ -62,6 +62,25 @@ Create `linear-flow.json`:
 
 ### Step B. Generate dynamic compose override
 
+If your `linear-flow` is already sent to API, use the same payload for compose generation endpoint:
+
+```bash
+curl -X POST http://localhost:8080/api/simulation-graph/linear/distributed/compose \
+  -H 'Content-Type: application/json' \
+  -d @linear-flow.json
+```
+
+Response contains `composeYaml` (content of `docker-compose.operations.yml`).
+You can save it directly:
+
+```bash
+curl -s -X POST http://localhost:8080/api/simulation-graph/linear/distributed/compose \
+  -H 'Content-Type: application/json' \
+  -d @linear-flow.json | jq -r ' .composeYaml ' > docker-compose.operations.yml
+```
+
+Alternatively, file-based generator still works:
+
 ```bash
 python3 scripts/generate_compose_for_linear_flow.py --input linear-flow.json
 ```
@@ -75,13 +94,26 @@ This generates `docker-compose.operations.yml` with services like:
 
 Each operation service gets its own `operation-id`, `next-operation-id`, `tauMean`, `tauSigma`, and `randomSeed` from JSON.
 
-### Step C. Start all services
+### Step C. One-command startup (recommended)
+
+Instead of manually running generation + compose, you can use wrapper script:
+
+```bash
+scripts/run_distributed_flow.sh linear-flow.json
+```
+
+What it does:
+1. validates the JSON flow (startStore/finishStore and sequential operation IDs),
+2. generates `docker-compose.operations.yml`,
+3. starts `docker compose -f docker-compose.yml -f docker-compose.operations.yml up --build`.
+
+### Step D. Start all services manually (alternative)
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.operations.yml up --build
 ```
 
-### Step D. Start batch flow through Kafka
+### Step E. Start batch flow through Kafka
 
 Use API endpoint that initializes topics and sends first parts from `startStore` to operation 1:
 
@@ -107,3 +139,37 @@ Operation workers consume/produce messages hop-by-hop:
 - `line-op-1-to-2` -> `Op02`
 - ...
 - `line-op-7-to-8` -> `finishStore`
+
+
+## 4) API orchestration mode (auto-start workers from `/linear`)
+
+If you want `POST /api/simulation-graph/linear` to automatically:
+1. generate/update worker compose override,
+2. start missing worker services,
+3. wait until they are running,
+4. publish start batch messages to Kafka,
+
+set orchestration mode:
+
+```properties
+# inprocess | docker | none
+simulation.orchestration.mode=inprocess
+```
+
+Mode details:
+- `inprocess` (default): workers are created dynamically inside API process (works with plain `docker compose up --build`).
+- `docker`: API runs `docker compose` to start worker containers automatically.
+- `none`: disable orchestration and keep only historical local simulation behavior on `/linear`.
+
+Optional tuning (used by `docker` mode):
+
+```properties
+simulation.orchestration.compose.project-dir=.
+simulation.orchestration.compose.base-file=docker-compose.yml
+simulation.orchestration.compose.override-file=docker-compose.operations.yml
+simulation.orchestration.workers.ready-timeout-ms=120000
+simulation.orchestration.workers.ready-poll-interval-ms=3000
+```
+
+> Important for `docker` mode: if API itself runs inside Docker container, orchestration needs Docker CLI + daemon access inside that container (for example mounting `/var/run/docker.sock` and providing `docker` binary). Without this, `/linear` may fail during worker auto-start.
+

@@ -18,6 +18,14 @@ public class ApiExceptionHandler {
         return detail;
     }
 
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ProblemDetail handleIllegalState(IllegalStateException exception) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, exception.getMessage());
+        detail.setTitle("Simulation execution failed");
+        return detail;
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidation(MethodArgumentNotValidException exception) {
         String detailMessage = exception.getBindingResult().getFieldErrors().stream()
