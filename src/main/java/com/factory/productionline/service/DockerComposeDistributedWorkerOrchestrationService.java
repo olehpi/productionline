@@ -48,46 +48,33 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
 
     @Override
     public void ensureWorkersAndStartBatch(ProductionLine.LinearSimulationInput input) {
-        String overrideYaml = distributedComposeGenerator.generate(input);
         Path projectDir = Path.of(composeProjectDir).toAbsolutePath().normalize();
-        Path overridePath = projectDir.resolve(composeOverrideFile);
+        List<String> expectedServices = expectedServices(input);
 
-        try {
-            Files.createDirectories(overridePath.getParent());
-            Files.writeString(overridePath, overrideYaml, StandardCharsets.UTF_8);
-        } catch (IOException exception) {
-            throw new IllegalStateException("Failed to write compose override file: " + overridePath, exception);
+        if (!areWorkersRunning(projectDir, expectedServices)) {
+            String overrideYaml = distributedComposeGenerator.generate(input);
+            Path overridePath = projectDir.resolve(composeOverrideFile);
+            try {
+                Files.createDirectories(overridePath.getParent());
+                Files.writeString(overridePath, overrideYaml, StandardCharsets.UTF_8);
+            } catch (IOException exception) {
+                throw new IllegalStateException("Failed to write compose override file: " + overridePath, exception);
+            }
+
+            runCommand(projectDir,
+                    List.of("docker", "compose", "-f", composeBaseFile, "-f", composeOverrideFile, "up", "--build", "-d"),
+                    "Failed to start operation workers with docker compose"
+            );
         }
 
-        runCommand(projectDir,
-                List.of("docker", "compose", "-f", composeBaseFile, "-f", composeOverrideFile, "up", "--build", "-d"),
-                "Failed to start operation workers with docker compose"
-        );
-
-        waitForWorkers(projectDir, input);
-
+        waitForWorkers(projectDir, expectedServices);
         distributedSimulationLauncher.start(input);
     }
 
-    private void waitForWorkers(Path projectDir, ProductionLine.LinearSimulationInput input) {
-        List<String> expectedServices = input.operations().stream()
-                .filter(operation -> !isStore(operation.name()))
-                .map(operation -> "productionline-operation" + operation.id() + "-app")
-                .sorted()
-                .collect(Collectors.toCollection(ArrayList::new));
-        expectedServices.add("productionline-finish-store-app");
-
+    private void waitForWorkers(Path projectDir, List<String> expectedServices) {
         Instant deadline = Instant.now().plus(Duration.ofMillis(readyTimeoutMillis));
         while (Instant.now().isBefore(deadline)) {
-            String output = runCommand(projectDir,
-                    List.of("docker", "compose", "-f", composeBaseFile, "-f", composeOverrideFile,
-                            "ps", "--services", "--status", "running"),
-                    "Failed to read running docker compose services"
-            );
-            List<String> running = output.lines()
-                    .map(String::trim)
-                    .filter(line -> !line.isBlank())
-                    .toList();
+            List<String> running = runningServices(projectDir);
             if (running.containsAll(expectedServices)) {
                 return;
             }
@@ -95,6 +82,34 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
         }
 
         throw new IllegalStateException("Timed out waiting for distributed workers readiness");
+    }
+
+
+    private boolean areWorkersRunning(Path projectDir, List<String> expectedServices) {
+        List<String> running = runningServices(projectDir);
+        return running.containsAll(expectedServices);
+    }
+
+    private List<String> expectedServices(ProductionLine.LinearSimulationInput input) {
+        List<String> expectedServices = input.operations().stream()
+                .filter(operation -> !isStore(operation.name()))
+                .map(operation -> "productionline-operation" + operation.id() + "-app")
+                .sorted()
+                .collect(Collectors.toCollection(ArrayList::new));
+        expectedServices.add("productionline-finish-store-app");
+        return expectedServices;
+    }
+
+    private List<String> runningServices(Path projectDir) {
+        String output = runCommand(projectDir,
+                List.of("docker", "compose", "-f", composeBaseFile, "-f", composeOverrideFile,
+                        "ps", "--services", "--status", "running"),
+                "Failed to read running docker compose services"
+        );
+        return output.lines()
+                .map(String::trim)
+                .filter(line -> !line.isBlank())
+                .toList();
     }
 
     private String runCommand(Path projectDir, List<String> command, String failureMessage) {
