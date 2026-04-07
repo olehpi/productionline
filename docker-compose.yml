@@ -34,6 +34,7 @@ services:
         condition: service_healthy
     ports:
       - "8080:8080"
+      - "5005:5005"
     working_dir: /workspace/productionline
     volumes:
       - ./:/workspace/productionline
@@ -43,3 +44,4 @@ services:
       - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - SIMULATION_ORCHESTRATION_FROM_API_ENABLED=true
       - SIMULATION_ORCHESTRATION_COMPOSE_PROJECT_DIR=/workspace/productionline
+      - JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
