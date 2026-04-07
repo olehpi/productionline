@@ -18,6 +18,13 @@ public class ApiExceptionHandler {
         return detail;
     }
 
+    @ExceptionHandler(IllegalStateException.class)
+    public ProblemDetail handleIllegalState(IllegalStateException exception) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, exception.getMessage());
+        detail.setTitle("Distributed orchestration unavailable");
+        return detail;
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidation(MethodArgumentNotValidException exception) {
         String detailMessage = exception.getBindingResult().getFieldErrors().stream()

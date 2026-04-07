@@ -3,5 +3,5 @@ package com.factory.productionline.service;
 import com.factory.productionline.model.ProductionLine;
 
 public interface DistributedWorkerOrchestrationService {
-    void ensureWorkersAndStartBatch(ProductionLine.LinearSimulationInput input);
+    void applyWorkers(ProductionLine.LinearSimulationInput input);
 }

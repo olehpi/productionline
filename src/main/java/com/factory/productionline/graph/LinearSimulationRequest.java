@@ -10,7 +10,6 @@ import java.util.List;
 
 public record LinearSimulationRequest(
         @Min(1) int partsCount,
-        @Min(1) int operationsCount,
         @NotBlank String batchId,
         @DecimalMin(value = "0.0", inclusive = true) double startTau,
         @DecimalMin(value = "0.0", inclusive = true) double finishTau,

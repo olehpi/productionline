@@ -4,6 +4,7 @@ public record DistributedSimulationStartResponse(
         String batchId,
         int partsSent,
         String startTopic,
-        String finishTopic
+        String finishTopic,
+        double finishBatchTime
 ) {
 }

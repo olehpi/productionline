@@ -33,12 +33,12 @@ Start the configuration with `Debug`.
 
 ## Recommended first breakpoints
 Set breakpoints in:
-- `SimulationGraphController.runLinearSimulation(...)`
-- `DockerComposeDistributedWorkerOrchestrationService.ensureWorkersAndStartBatch(...)`
+- `SimulationGraphController.applyDistributedWorkers(...)`
+- `DockerComposeDistributedWorkerOrchestrationService.applyWorkers(...)`
 - `KafkaDistributedSimulationLauncher.start(...)`
 After the debugger is attached, call the API:
 ```bash
-curl -X POST http://localhost:8080/api/simulation-graph/linear \
+curl -X POST http://localhost:8080/api/simulation-graph/linear/distributed/apply \
   -H 'Content-Type: application/json' \
   -d @linear-flow.json
 ```

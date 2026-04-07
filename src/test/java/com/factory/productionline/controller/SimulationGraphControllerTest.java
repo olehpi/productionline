@@ -7,6 +7,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -198,7 +199,6 @@ class SimulationGraphControllerTest {
         String payload = """
                 {
                   "partsCount": 3,
-                  "operationsCount": 2,
                   "batchId": "batch-42",
                   "startTau": 0.0,
                   "finishTau": 30.0,
@@ -219,41 +219,61 @@ class SimulationGraphControllerTest {
                 .andExpect(jsonPath("$.composeYaml").value(org.hamcrest.Matchers.containsString("productionline-operation1-app")))
                 .andExpect(jsonPath("$.composeYaml").value(org.hamcrest.Matchers.containsString("productionline-finish-store-app")));
     }
-
     @Test
-    void runLinearSimulationBuildsSequentialPipelineWithKafkaTransfers() throws Exception {
+    void applyDistributedWorkersReturnsConflictWhenApiOrchestrationDisabled() throws Exception {
         String payload = """
                 {
                   "partsCount": 3,
-                  "operationsCount": 7,
                   "batchId": "batch-42",
                   "startTau": 0.0,
-                  "finishTau": 90.0,
+                  "finishTau": 30.0,
                   "operations": [
                     { "id": 0, "name": "startStore", "tauMean": 0.0, "tauSigma": 0.0, "randomSeed": 0 },
                     { "id": 1, "name": "Op01", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 1 },
                     { "id": 2, "name": "Op02", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 2 },
-                    { "id": 3, "name": "Op03", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 3 },
-                    { "id": 4, "name": "Op04", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 4 },
-                    { "id": 5, "name": "Op05", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 5 },
-                    { "id": 6, "name": "Op06", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 6 },
-                    { "id": 7, "name": "Op07", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 7 },
-                    { "id": 8, "name": "finishStore", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 0 }
+                    { "id": 3, "name": "finishStore", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 0 }
                   ]
                 }
                 """;
 
-        mockMvc.perform(post("/api/simulation-graph/linear")
+        mockMvc.perform(post("/api/simulation-graph/linear/distributed/apply")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.operationTimelines.length()").value(7))
-                .andExpect(jsonPath("$.operationTimelines[0].events.length()").value(3))
-                .andExpect(jsonPath("$.operationTimelines[6].events.length()").value(3))
-                .andExpect(jsonPath("$.kafkaMessages.length()").value(18))
-                .andExpect(jsonPath("$.operationTimelines[0].events[0].startTau").value(0.0))
-                .andExpect(jsonPath("$.operationTimelines[0].events[0].finishTau").value(10.0))
-                .andExpect(jsonPath("$.operationTimelines[6].events[2].finishTau").value(90.0))
-                .andExpect(jsonPath("$.finalTau").value(90.0));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Distributed orchestration unavailable"))
+                .andExpect(jsonPath("$.detail").value("API-driven distributed orchestration is disabled"));
+    }
+
+    @Test
+    void startDistributedSimulationReturnsAcceptedWithKafkaTopics() throws Exception {
+        String payload = """
+                {
+                  "partsCount": 3,
+                  "batchId": "batch-42",
+                  "startTau": 0.0,
+                  "finishTau": 30.0,
+                  "operations": [
+                    { "id": 0, "name": "startStore", "tauMean": 0.0, "tauSigma": 0.0, "randomSeed": 0 },
+                    { "id": 1, "name": "Op01", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 1 },
+                    { "id": 2, "name": "Op02", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 2 },
+                    { "id": 3, "name": "finishStore", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 0 }
+                  ]
+                }
+                """;
+
+        mockMvc.perform(post("/api/simulation-graph/linear/distributed/start")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Invalid production line configuration"))
+                .andExpect(jsonPath("$.detail").value("Kafka is disabled. Set simulation.kafka.enabled=true to start distributed flow"));
+    }
+
+    @Test
+    void telemetryReturnsConflictWhenBatchWasNotRegistered() throws Exception {
+        mockMvc.perform(get("/api/simulation-graph/linear/distributed/telemetry/batch-unknown"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Distributed orchestration unavailable"))
+                .andExpect(jsonPath("$.detail").value("Kafka telemetry is disabled. Set simulation.kafka.enabled=true to query distributed telemetry"));
     }
 }

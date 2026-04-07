@@ -71,38 +71,4 @@ public record ProductionLine(
             Long randomSeed
     ) {
     }
-
-    public record LinearSimulationResult(
-            double finalTau,
-            List<LinearOperationTimeline> operationTimelines,
-            List<KafkaTransferMessage> kafkaMessages
-    ) {
-    }
-
-    public record LinearOperationTimeline(
-            int operationNumber,
-            List<PartProcessingEvent> events
-    ) {
-    }
-
-    public record PartProcessingEvent(
-            int partNumber,
-            String batchId,
-            double startTau,
-            double processingTau,
-            double finishTau
-    ) {
-    }
-
-    public record KafkaTransferMessage(
-            int fromOperation,
-            int toOperation,
-            int partNumber,
-            String batchId,
-            double processingStartTau,
-            double processingTau,
-            double availableAtTau
-    ) {
-    }
-
 }

@@ -21,7 +21,6 @@ import java.util.stream.Collectors;
 public class DockerComposeDistributedWorkerOrchestrationService implements DistributedWorkerOrchestrationService {
 
     private final DistributedComposeGenerator distributedComposeGenerator;
-    private final DistributedSimulationLauncher distributedSimulationLauncher;
     private final String composeProjectDir;
     private final String composeBaseFile;
     private final String composeOverrideFile;
@@ -30,7 +29,6 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
 
     public DockerComposeDistributedWorkerOrchestrationService(
             DistributedComposeGenerator distributedComposeGenerator,
-            DistributedSimulationLauncher distributedSimulationLauncher,
             @Value("${simulation.orchestration.compose.project-dir:.}") String composeProjectDir,
             @Value("${simulation.orchestration.compose.base-file:docker-compose.yml}") String composeBaseFile,
             @Value("${simulation.orchestration.compose.override-file:docker-compose.operations.yml}") String composeOverrideFile,
@@ -38,7 +36,6 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
             @Value("${simulation.orchestration.workers.ready-poll-interval-ms:3000}") long readyPollIntervalMillis
     ) {
         this.distributedComposeGenerator = distributedComposeGenerator;
-        this.distributedSimulationLauncher = distributedSimulationLauncher;
         this.composeProjectDir = composeProjectDir;
         this.composeBaseFile = composeBaseFile;
         this.composeOverrideFile = composeOverrideFile;
@@ -47,7 +44,7 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
     }
 
     @Override
-    public void ensureWorkersAndStartBatch(ProductionLine.LinearSimulationInput input) {
+    public void applyWorkers(ProductionLine.LinearSimulationInput input) {
         String overrideYaml = distributedComposeGenerator.generate(input);
         Path projectDir = Path.of(composeProjectDir).toAbsolutePath().normalize();
         Path overridePath = projectDir.resolve(composeOverrideFile);
@@ -72,8 +69,6 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
         );
 
         waitForWorkers(projectDir, expectedServices);
-
-        distributedSimulationLauncher.start(input);
     }
 
     private void waitForWorkers(Path projectDir, List<String> expectedServices) {

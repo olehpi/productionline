@@ -1,5 +1,6 @@
 package com.factory.productionline.graph;
 
+import com.factory.productionline.model.DistributedBatchResult;
 import com.factory.productionline.model.ProductionLine;
 import org.springframework.stereotype.Component;
 
@@ -73,9 +74,13 @@ public class ProductionLineMapper {
     }
 
     public ProductionLine.LinearSimulationInput toModel(LinearSimulationRequest request) {
+        int operationsCount = (int) request.operations().stream()
+                .filter(operationInput -> !isStore(operationInput.name()))
+                .count();
+
         return new ProductionLine.LinearSimulationInput(
                 request.partsCount(),
-                request.operationsCount(),
+                operationsCount,
                 request.batchId(),
                 request.startTau(),
                 request.finishTau(),
@@ -91,7 +96,12 @@ public class ProductionLineMapper {
         );
     }
 
-    public LinearSimulationResponse toResponse(ProductionLine.LinearSimulationResult result) {
+    private boolean isStore(String name) {
+        String normalized = name == null ? "" : name.trim().toLowerCase();
+        return normalized.equals("startstore") || normalized.equals("finishstore");
+    }
+
+    public LinearSimulationResponse toResponse(DistributedBatchResult result) {
         return new LinearSimulationResponse(
                 result.finalTau(),
                 result.operationTimelines().stream()
@@ -121,5 +131,4 @@ public class ProductionLineMapper {
                         .toList()
         );
     }
-
 }

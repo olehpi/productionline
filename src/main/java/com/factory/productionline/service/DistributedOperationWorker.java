@@ -1,5 +1,6 @@
 package com.factory.productionline.service;
 
+import com.factory.productionline.model.DistributedOperationEvent;
 import com.factory.productionline.model.DistributedPartMessage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,7 +12,11 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 @Component
 @ConditionalOnProperty(name = "simulation.distributed.worker.enabled", havingValue = "true")
@@ -26,6 +31,9 @@ public class DistributedOperationWorker {
     private final double tauMean;
     private final double tauSigma;
     private final Random random;
+    private final Set<String> seenBatchIds;
+    private final Map<String, Double> batchStartTauByBatchId;
+    private double machineBusyUntil;
 
     public DistributedOperationWorker(
             KafkaTemplate<String, String> kafkaTemplate,
@@ -43,6 +51,9 @@ public class DistributedOperationWorker {
         this.tauMean = tauMean;
         this.tauSigma = tauSigma;
         this.random = new Random(randomSeed);
+        this.seenBatchIds = new HashSet<>();
+        this.batchStartTauByBatchId = new HashMap<>();
+        this.machineBusyUntil = 0d;
     }
 
     @KafkaListener(
@@ -51,21 +62,22 @@ public class DistributedOperationWorker {
     )
     public void process(String payload) {
         DistributedPartMessage incoming = deserialize(payload);
-
-        double startTau = incoming.finishTau();
-        double processingTau = sampleNormalBounded();
-        double finishTau = startTau + processingTau;
-
-        DistributedPartMessage outgoing = new DistributedPartMessage(
-                incoming.partNumber(),
-                incoming.batchId(),
-                startTau,
-                processingTau,
-                finishTau
-        );
-
+        DistributedPartMessage outgoing = processMessage(incoming);
         String outputTopic = "line-op-" + operationId + "-to-" + nextOperationId;
         kafkaTemplate.send(outputTopic, outgoing.batchId() + "-" + outgoing.partNumber(), serialize(outgoing));
+        kafkaTemplate.send(
+                DistributedSimulationTopics.OPERATION_EVENTS_TOPIC,
+                outgoing.batchId() + "-" + operationId + "-" + outgoing.partNumber(),
+                serialize(new DistributedOperationEvent(
+                        operationId,
+                        nextOperationId,
+                        outgoing.partNumber(),
+                        outgoing.batchId(),
+                        outgoing.startTau(),
+                        outgoing.processingTau(),
+                        outgoing.finishTau()
+                ))
+        );
 
         log.info("Operation {} processed part {} for batch {}. startTau={}, finishTau={}, outputTopic={}",
                 operationId,
@@ -74,6 +86,30 @@ public class DistributedOperationWorker {
                 outgoing.startTau(),
                 outgoing.finishTau(),
                 outputTopic);
+    }
+
+    synchronized DistributedPartMessage processMessage(DistributedPartMessage incoming) {
+        String batchId = incoming.batchId();
+        if (incoming.partNumber() == 1 && seenBatchIds.contains(batchId)) {
+            machineBusyUntil = batchStartTauByBatchId.getOrDefault(batchId, incoming.finishTau());
+        }
+        if (incoming.partNumber() == 1) {
+            batchStartTauByBatchId.putIfAbsent(batchId, machineBusyUntil);
+            seenBatchIds.add(batchId);
+        }
+
+        double startTau = Math.max(incoming.finishTau(), machineBusyUntil);
+        double processingTau = sampleNormalBounded();
+        double finishTau = startTau + processingTau;
+        machineBusyUntil = finishTau;
+
+        return new DistributedPartMessage(
+                incoming.partNumber(),
+                incoming.batchId(),
+                startTau,
+                processingTau,
+                finishTau
+        );
     }
 
     private double sampleNormalBounded() {
@@ -91,7 +127,7 @@ public class DistributedOperationWorker {
         }
     }
 
-    private String serialize(DistributedPartMessage message) {
+    private String serialize(Object message) {
         try {
             return objectMapper.writeValueAsString(message);
         } catch (JsonProcessingException exception) {

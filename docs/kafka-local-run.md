@@ -1,9 +1,9 @@
-# Running production line with Kafka (single service and distributed workers)
+# Running production line with Kafka and distributed workers
 
-This project supports two Kafka-based modes:
+This project runs the production line only in distributed mode:
 
-1. **Single-service linear simulation** (`productionline-app`) that computes all operations in one process.
-2. **Distributed operation workers** where every technological operation is a separate app container communicating via Kafka topics.
+1. `productionline-app` exposes the orchestration API on port `8080`
+2. every technological operation is a separate app container communicating via Kafka topics
 
 ## 1) Base stack
 
@@ -26,19 +26,7 @@ The API service has Kafka publishing enabled in compose:
 - `SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092`
 - `SIMULATION_ORCHESTRATION_FROM_API_ENABLED=true` (for local compose run)
 
-## 2) Single-service linear simulation (existing behavior)
-
-Call:
-
-```bash
-curl -X POST http://localhost:8080/api/simulation-graph/linear \
-  -H 'Content-Type: application/json' \
-  -d @linear-flow.json
-```
-
-The API returns full timeline and Kafka transfer messages in response.
-
-## 3) Distributed mode: one container per operation
+## 2) Distributed mode: one container per operation
 
 ### Step A. Prepare input JSON
 
@@ -47,7 +35,6 @@ Create `linear-flow.json`:
 ```json
 {
   "partsCount": 3,
-  "operationsCount": 7,
   "batchId": "batch-42",
   "startTau": 0.0,
   "finishTau": 90.0,
@@ -64,6 +51,8 @@ Create `linear-flow.json`:
   ]
 }
 ```
+
+`operationsCount` is derived automatically from non-store entries in `operations`.
 
 ### Step B. Generate dynamic compose override
 
@@ -145,14 +134,28 @@ Operation workers consume/produce messages hop-by-hop:
 - ...
 - `line-op-7-to-8` -> `finishStore`
 
+### Step F. Fetch full telemetry result for a batch
 
-## 4) API orchestration mode (auto-start workers from `/linear`)
+To get the full factual result collected from distributed workers, call:
 
-If you want `POST /api/simulation-graph/linear` to automatically:
+```bash
+curl http://localhost:8080/api/simulation-graph/linear/distributed/telemetry/batch-42
+```
+
+The response contains:
+- `finalTau`
+- `operationTimelines`
+- `kafkaMessages`
+
+This telemetry output is built from actual worker events grouped by `batchId`.
+
+
+## 3) API orchestration mode
+
+If you want the API to automatically:
 1. generate/update worker compose override,
 2. start missing worker services,
 3. wait until they are running,
-4. publish start batch messages to Kafka,
 
 enable property:
 
@@ -171,13 +174,19 @@ simulation.orchestration.workers.ready-timeout-ms=120000
 simulation.orchestration.workers.ready-poll-interval-ms=3000
 ```
 
-When disabled (default), `/linear` keeps legacy single-service behavior.
+Call:
 
-> In the provided `docker-compose.yml` for local run, orchestration is explicitly enabled via env var, so `/linear` auto-starts missing worker services.
-> In orchestration mode workers reuse the already built local image `productionline-productionline`, so the API does not rebuild images during `POST /linear`.
+```bash
+curl -X POST http://localhost:8080/api/simulation-graph/linear/distributed/apply \
+  -H 'Content-Type: application/json' \
+  -d @linear-flow.json
+```
+
+> In the provided `docker-compose.yml` for local run, orchestration is explicitly enabled via env var, so `/linear/distributed/apply` can auto-start missing worker services.
+> In orchestration mode workers reuse the already built local image `productionline-productionline`, so the API does not rebuild images during apply.
 
 
-### Why `/api/simulation-graph/linear` can return 500 in orchestration mode
+### Why `/api/simulation-graph/linear/distributed/apply` can return 500 in orchestration mode
 
 If you enabled:
 
@@ -185,7 +194,7 @@ If you enabled:
 simulation.orchestration.from-api.enabled=true
 ```
 
-then `/linear` tries to run `docker compose ...` from inside the `productionline-app` container.
+then `/linear/distributed/apply` tries to run `docker compose ...` from inside the `productionline-app` container.
 In a default local setup, that container does not have Docker CLI/socket access, so orchestration can fail with HTTP 500.
 
 Use one of these approaches:
