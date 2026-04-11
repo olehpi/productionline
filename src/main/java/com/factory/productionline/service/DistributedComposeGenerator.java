@@ -94,16 +94,21 @@ public class DistributedComposeGenerator {
     private void appendWorkerService(StringBuilder compose, ProductionLine.LinearOperationInput operation, String routeId) {
         int operationId = operation.id();
         String inboundTopic = DistributedSimulationTopics.operationTopic(routeId, operationId - 1, operationId);
+        int debugPort = 5100 + operationId;
 
         compose.append("  ").append(DistributedSimulationTopics.workerServiceName(routeId, operationId)).append(":\n")
                 .append("    image: ").append(workerImage).append("\n")
                 .append("    depends_on:\n")
                 .append("      kafka:\n")
                 .append("        condition: service_healthy\n")
+                .append("    ports:\n")
+                .append("      - \"").append(debugPort).append(":").append(debugPort).append("\"\n")
                 .append("    environment:\n")
                 .append("      - SIMULATION_KAFKA_ENABLED=true\n")
                 .append("      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092\n")
                 .append("      - SPRING_MAIN_WEB_APPLICATION_TYPE=none\n")
+                .append("      - JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:")
+                .append(debugPort).append("\n")
                 .append("      - SIMULATION_DISTRIBUTED_WORKER_ENABLED=true\n")
                 .append("      - SIMULATION_DISTRIBUTED_WORKER_GROUP_ID=")
                 .append(DistributedSimulationTopics.workerGroupId(routeId, operationId)).append("\n")
@@ -117,15 +122,20 @@ public class DistributedComposeGenerator {
 
     private void appendFinishStoreService(StringBuilder compose, int operationsCount, String routeId) {
         String finishTopic = DistributedSimulationTopics.operationTopic(routeId, operationsCount, operationsCount + 1);
+        int debugPort = 5100 + operationsCount + 1;
         compose.append("  ").append(DistributedSimulationTopics.finishStoreServiceName(routeId)).append(":\n")
                 .append("    image: ").append(workerImage).append("\n")
                 .append("    depends_on:\n")
                 .append("      kafka:\n")
                 .append("        condition: service_healthy\n")
+                .append("    ports:\n")
+                .append("      - \"").append(debugPort).append(":").append(debugPort).append("\"\n")
                 .append("    environment:\n")
                 .append("      - SIMULATION_KAFKA_ENABLED=true\n")
                 .append("      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092\n")
                 .append("      - SPRING_MAIN_WEB_APPLICATION_TYPE=none\n")
+                .append("      - JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:")
+                .append(debugPort).append("\n")
                 .append("      - SIMULATION_DISTRIBUTED_FINISH_STORE_ENABLED=true\n")
                 .append("      - SIMULATION_DISTRIBUTED_FINISH_STORE_TOPIC=").append(finishTopic).append("\n")
                 .append("      - SIMULATION_DISTRIBUTED_FINISH_STORE_GROUP_ID=")

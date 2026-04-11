@@ -34,7 +34,10 @@ class DistributedComposeGeneratorTest {
         assertTrue(compose.contains("productionline-route-42-operation1-app"));
         assertTrue(compose.contains("image: productionline-productionline"));
         assertTrue(compose.contains("SIMULATION_DISTRIBUTED_WORKER_INBOUND_TOPIC=route-42-line-op-1-to-2"));
+        assertTrue(compose.contains("- \"5101:5101\""));
+        assertTrue(compose.contains("JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5101"));
         assertTrue(compose.contains("productionline-route-42-finish-store-app"));
+        assertTrue(compose.contains("- \"5103:5103\""));
     }
 
     @Test
