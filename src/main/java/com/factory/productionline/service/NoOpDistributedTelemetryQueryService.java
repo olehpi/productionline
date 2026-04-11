@@ -9,11 +9,21 @@ import org.springframework.stereotype.Service;
 public class NoOpDistributedTelemetryQueryService extends DistributedTelemetryQueryService {
 
     public NoOpDistributedTelemetryQueryService() {
-        super(null, null, 0L, 0L);
+        super(new DistributedRouteRegistry(), null, null, 0L, 0L);
     }
 
     @Override
-    public DistributedBatchResult getBatchResult(String batchId) {
+    public DistributedBatchResult getRouteResult(String routeId) {
+        throw new IllegalStateException("Kafka telemetry is disabled. Set simulation.kafka.enabled=true to query distributed telemetry");
+    }
+
+    @Override
+    public DistributedBatchResult getBatchResult(String routeId, String batchId) {
+        throw new IllegalStateException("Kafka telemetry is disabled. Set simulation.kafka.enabled=true to query distributed telemetry");
+    }
+
+    @Override
+    public DistributedBatchResult getPartResult(String routeId, String batchId, int partNumber) {
         throw new IllegalStateException("Kafka telemetry is disabled. Set simulation.kafka.enabled=true to query distributed telemetry");
     }
 }

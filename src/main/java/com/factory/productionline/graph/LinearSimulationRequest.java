@@ -9,6 +9,7 @@ import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
 
 public record LinearSimulationRequest(
+        @NotBlank String routeId,
         @Min(1) int partsCount,
         @NotBlank String batchId,
         @DecimalMin(value = "0.0", inclusive = true) double startTau,

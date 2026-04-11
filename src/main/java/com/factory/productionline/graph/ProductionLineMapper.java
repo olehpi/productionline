@@ -79,6 +79,7 @@ public class ProductionLineMapper {
                 .count();
 
         return new ProductionLine.LinearSimulationInput(
+                request.routeId(),
                 request.partsCount(),
                 operationsCount,
                 request.batchId(),

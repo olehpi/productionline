@@ -198,6 +198,7 @@ class SimulationGraphControllerTest {
     void generateDistributedComposeFromLinearPayload() throws Exception {
         String payload = """
                 {
+                  "routeId": "route-42",
                   "partsCount": 3,
                   "batchId": "batch-42",
                   "startTau": 0.0,
@@ -215,14 +216,15 @@ class SimulationGraphControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.composeFileName").value("docker-compose.operations.yml"))
-                .andExpect(jsonPath("$.composeYaml").value(org.hamcrest.Matchers.containsString("productionline-operation1-app")))
-                .andExpect(jsonPath("$.composeYaml").value(org.hamcrest.Matchers.containsString("productionline-finish-store-app")));
+                .andExpect(jsonPath("$.composeFileName").value("docker-compose.operations-route-42.yml"))
+                .andExpect(jsonPath("$.composeYaml").value(org.hamcrest.Matchers.containsString("productionline-route-42-operation1-app")))
+                .andExpect(jsonPath("$.composeYaml").value(org.hamcrest.Matchers.containsString("productionline-route-42-finish-store-app")));
     }
     @Test
     void applyDistributedWorkersReturnsConflictWhenApiOrchestrationDisabled() throws Exception {
         String payload = """
                 {
+                  "routeId": "route-42",
                   "partsCount": 3,
                   "batchId": "batch-42",
                   "startTau": 0.0,
@@ -248,6 +250,7 @@ class SimulationGraphControllerTest {
     void startDistributedSimulationReturnsAcceptedWithKafkaTopics() throws Exception {
         String payload = """
                 {
+                  "routeId": "route-42",
                   "partsCount": 3,
                   "batchId": "batch-42",
                   "startTau": 0.0,
@@ -270,8 +273,24 @@ class SimulationGraphControllerTest {
     }
 
     @Test
-    void telemetryReturnsConflictWhenBatchWasNotRegistered() throws Exception {
-        mockMvc.perform(get("/api/simulation-graph/linear/distributed/telemetry/batch-unknown"))
+    void routeTelemetryReturnsConflictWhenKafkaDisabled() throws Exception {
+        mockMvc.perform(get("/api/simulation-graph/linear/distributed/telemetry/route-unknown"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Distributed orchestration unavailable"))
+                .andExpect(jsonPath("$.detail").value("Kafka telemetry is disabled. Set simulation.kafka.enabled=true to query distributed telemetry"));
+    }
+
+    @Test
+    void batchTelemetryReturnsConflictWhenKafkaDisabled() throws Exception {
+        mockMvc.perform(get("/api/simulation-graph/linear/distributed/telemetry/route-unknown/batch-unknown"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Distributed orchestration unavailable"))
+                .andExpect(jsonPath("$.detail").value("Kafka telemetry is disabled. Set simulation.kafka.enabled=true to query distributed telemetry"));
+    }
+
+    @Test
+    void partTelemetryReturnsConflictWhenKafkaDisabled() throws Exception {
+        mockMvc.perform(get("/api/simulation-graph/linear/distributed/telemetry/route-unknown/batch-unknown/3"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.title").value("Distributed orchestration unavailable"))
                 .andExpect(jsonPath("$.detail").value("Kafka telemetry is disabled. Set simulation.kafka.enabled=true to query distributed telemetry"));

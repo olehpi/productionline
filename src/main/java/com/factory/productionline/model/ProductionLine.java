@@ -54,6 +54,7 @@ public record ProductionLine(
 
 
     public record LinearSimulationInput(
+            String routeId,
             int partsCount,
             int operationsCount,
             String batchId,

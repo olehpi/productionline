@@ -1,6 +1,7 @@
 package com.factory.productionline.model;
 
 public record DistributedOperationEvent(
+        String routeId,
         int operationId,
         int nextOperationId,
         int partNumber,

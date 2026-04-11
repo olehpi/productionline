@@ -22,9 +22,9 @@ class DistributedOperationWorkerTest {
                 7L
         );
 
-        DistributedPartMessage first = worker.processMessage(new DistributedPartMessage(1, "batch-42", 50.0, 10.0, 60.0));
-        DistributedPartMessage second = worker.processMessage(new DistributedPartMessage(2, "batch-42", 50.0, 10.0, 60.0));
-        DistributedPartMessage third = worker.processMessage(new DistributedPartMessage(3, "batch-42", 50.0, 10.0, 60.0));
+        DistributedPartMessage first = worker.processMessage(new DistributedPartMessage("route-42", 1, "batch-42", 50.0, 10.0, 60.0));
+        DistributedPartMessage second = worker.processMessage(new DistributedPartMessage("route-42", 2, "batch-42", 50.0, 10.0, 60.0));
+        DistributedPartMessage third = worker.processMessage(new DistributedPartMessage("route-42", 3, "batch-42", 50.0, 10.0, 60.0));
 
         assertThat(first.startTau()).isEqualTo(60.0);
         assertThat(first.finishTau()).isEqualTo(70.0);
@@ -46,13 +46,13 @@ class DistributedOperationWorkerTest {
                 1L
         );
 
-        worker.processMessage(new DistributedPartMessage(1, "batch51", 0.0, 0.0, 0.0));
-        worker.processMessage(new DistributedPartMessage(2, "batch51", 0.0, 0.0, 0.0));
-        worker.processMessage(new DistributedPartMessage(3, "batch51", 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 1, "batch51", 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 2, "batch51", 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 3, "batch51", 0.0, 0.0, 0.0));
 
-        DistributedPartMessage restartedFirst = worker.processMessage(new DistributedPartMessage(1, "batch51", 0.0, 0.0, 0.0));
-        DistributedPartMessage restartedSecond = worker.processMessage(new DistributedPartMessage(2, "batch51", 0.0, 0.0, 0.0));
-        DistributedPartMessage restartedThird = worker.processMessage(new DistributedPartMessage(3, "batch51", 0.0, 0.0, 0.0));
+        DistributedPartMessage restartedFirst = worker.processMessage(new DistributedPartMessage("route-42", 1, "batch51", 0.0, 0.0, 0.0));
+        DistributedPartMessage restartedSecond = worker.processMessage(new DistributedPartMessage("route-42", 2, "batch51", 0.0, 0.0, 0.0));
+        DistributedPartMessage restartedThird = worker.processMessage(new DistributedPartMessage("route-42", 3, "batch51", 0.0, 0.0, 0.0));
 
         assertThat(restartedFirst.startTau()).isEqualTo(0.0);
         assertThat(restartedFirst.finishTau()).isEqualTo(30.0);
@@ -74,13 +74,13 @@ class DistributedOperationWorkerTest {
                 1L
         );
 
-        worker.processMessage(new DistributedPartMessage(1, "batchA", 0.0, 0.0, 0.0));
-        worker.processMessage(new DistributedPartMessage(2, "batchA", 0.0, 0.0, 0.0));
-        worker.processMessage(new DistributedPartMessage(3, "batchA", 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 1, "batchA", 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 2, "batchA", 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 3, "batchA", 0.0, 0.0, 0.0));
 
-        DistributedPartMessage nextBatchFirst = worker.processMessage(new DistributedPartMessage(1, "batchB", 0.0, 0.0, 0.0));
-        DistributedPartMessage nextBatchSecond = worker.processMessage(new DistributedPartMessage(2, "batchB", 0.0, 0.0, 0.0));
-        DistributedPartMessage nextBatchThird = worker.processMessage(new DistributedPartMessage(3, "batchB", 0.0, 0.0, 0.0));
+        DistributedPartMessage nextBatchFirst = worker.processMessage(new DistributedPartMessage("route-42", 1, "batchB", 0.0, 0.0, 0.0));
+        DistributedPartMessage nextBatchSecond = worker.processMessage(new DistributedPartMessage("route-42", 2, "batchB", 0.0, 0.0, 0.0));
+        DistributedPartMessage nextBatchThird = worker.processMessage(new DistributedPartMessage("route-42", 3, "batchB", 0.0, 0.0, 0.0));
 
         assertThat(nextBatchFirst.startTau()).isEqualTo(90.0);
         assertThat(nextBatchFirst.finishTau()).isEqualTo(120.0);
@@ -102,17 +102,17 @@ class DistributedOperationWorkerTest {
                 1L
         );
 
-        worker.processMessage(new DistributedPartMessage(1, "batchA", 0.0, 0.0, 0.0));
-        worker.processMessage(new DistributedPartMessage(2, "batchA", 0.0, 0.0, 0.0));
-        worker.processMessage(new DistributedPartMessage(3, "batchA", 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 1, "batchA", 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 2, "batchA", 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 3, "batchA", 0.0, 0.0, 0.0));
 
-        worker.processMessage(new DistributedPartMessage(1, "batchB", 0.0, 0.0, 0.0));
-        worker.processMessage(new DistributedPartMessage(2, "batchB", 0.0, 0.0, 0.0));
-        worker.processMessage(new DistributedPartMessage(3, "batchB", 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 1, "batchB", 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 2, "batchB", 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 3, "batchB", 0.0, 0.0, 0.0));
 
-        DistributedPartMessage repeatedFirst = worker.processMessage(new DistributedPartMessage(1, "batchB", 0.0, 0.0, 0.0));
-        DistributedPartMessage repeatedSecond = worker.processMessage(new DistributedPartMessage(2, "batchB", 0.0, 0.0, 0.0));
-        DistributedPartMessage repeatedThird = worker.processMessage(new DistributedPartMessage(3, "batchB", 0.0, 0.0, 0.0));
+        DistributedPartMessage repeatedFirst = worker.processMessage(new DistributedPartMessage("route-42", 1, "batchB", 0.0, 0.0, 0.0));
+        DistributedPartMessage repeatedSecond = worker.processMessage(new DistributedPartMessage("route-42", 2, "batchB", 0.0, 0.0, 0.0));
+        DistributedPartMessage repeatedThird = worker.processMessage(new DistributedPartMessage("route-42", 3, "batchB", 0.0, 0.0, 0.0));
 
         assertThat(repeatedFirst.startTau()).isEqualTo(90.0);
         assertThat(repeatedFirst.finishTau()).isEqualTo(120.0);

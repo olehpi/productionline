@@ -63,12 +63,17 @@ public class DistributedOperationWorker {
     public void process(String payload) {
         DistributedPartMessage incoming = deserialize(payload);
         DistributedPartMessage outgoing = processMessage(incoming);
-        String outputTopic = "line-op-" + operationId + "-to-" + nextOperationId;
-        kafkaTemplate.send(outputTopic, outgoing.batchId() + "-" + outgoing.partNumber(), serialize(outgoing));
+        String outputTopic = DistributedSimulationTopics.operationTopic(outgoing.routeId(), operationId, nextOperationId);
         kafkaTemplate.send(
-                DistributedSimulationTopics.OPERATION_EVENTS_TOPIC,
-                outgoing.batchId() + "-" + operationId + "-" + outgoing.partNumber(),
+                outputTopic,
+                outgoing.routeId() + "-" + outgoing.batchId() + "-" + outgoing.partNumber(),
+                serialize(outgoing)
+        );
+        kafkaTemplate.send(
+                DistributedSimulationTopics.operationEventsTopic(outgoing.routeId()),
+                outgoing.routeId() + "-" + outgoing.batchId() + "-" + operationId + "-" + outgoing.partNumber(),
                 serialize(new DistributedOperationEvent(
+                        outgoing.routeId(),
                         operationId,
                         nextOperationId,
                         outgoing.partNumber(),
@@ -79,9 +84,10 @@ public class DistributedOperationWorker {
                 ))
         );
 
-        log.info("Operation {} processed part {} for batch {}. startTau={}, finishTau={}, outputTopic={}",
+        log.info("Operation {} processed part {} for route {} batch {}. startTau={}, finishTau={}, outputTopic={}",
                 operationId,
                 outgoing.partNumber(),
+                outgoing.routeId(),
                 outgoing.batchId(),
                 outgoing.startTau(),
                 outgoing.finishTau(),
@@ -104,6 +110,7 @@ public class DistributedOperationWorker {
         machineBusyUntil = finishTau;
 
         return new DistributedPartMessage(
+                incoming.routeId(),
                 incoming.partNumber(),
                 incoming.batchId(),
                 startTau,

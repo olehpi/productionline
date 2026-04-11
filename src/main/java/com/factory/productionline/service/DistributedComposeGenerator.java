@@ -30,10 +30,10 @@ public class DistributedComposeGenerator {
 
         StringBuilder compose = new StringBuilder("services:\n");
         for (ProductionLine.LinearOperationInput worker : workerOperations) {
-            appendWorkerService(compose, worker);
+            appendWorkerService(compose, worker, input.routeId());
         }
 
-        appendFinishStoreService(compose, input.operationsCount());
+        appendFinishStoreService(compose, input.operationsCount(), input.routeId());
         return compose.toString();
     }
 
@@ -91,11 +91,11 @@ public class DistributedComposeGenerator {
         }
     }
 
-    private void appendWorkerService(StringBuilder compose, ProductionLine.LinearOperationInput operation) {
+    private void appendWorkerService(StringBuilder compose, ProductionLine.LinearOperationInput operation, String routeId) {
         int operationId = operation.id();
-        String inboundTopic = "line-op-" + (operationId - 1) + "-to-" + operationId;
+        String inboundTopic = DistributedSimulationTopics.operationTopic(routeId, operationId - 1, operationId);
 
-        compose.append("  productionline-operation").append(operationId).append("-app:\n")
+        compose.append("  ").append(DistributedSimulationTopics.workerServiceName(routeId, operationId)).append(":\n")
                 .append("    image: ").append(workerImage).append("\n")
                 .append("    depends_on:\n")
                 .append("      kafka:\n")
@@ -105,7 +105,8 @@ public class DistributedComposeGenerator {
                 .append("      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092\n")
                 .append("      - SPRING_MAIN_WEB_APPLICATION_TYPE=none\n")
                 .append("      - SIMULATION_DISTRIBUTED_WORKER_ENABLED=true\n")
-                .append("      - SIMULATION_DISTRIBUTED_WORKER_GROUP_ID=productionline-operation-").append(operationId).append("\n")
+                .append("      - SIMULATION_DISTRIBUTED_WORKER_GROUP_ID=")
+                .append(DistributedSimulationTopics.workerGroupId(routeId, operationId)).append("\n")
                 .append("      - SIMULATION_DISTRIBUTED_WORKER_INBOUND_TOPIC=").append(inboundTopic).append("\n")
                 .append("      - SIMULATION_DISTRIBUTED_WORKER_OPERATION_ID=").append(operationId).append("\n")
                 .append("      - SIMULATION_DISTRIBUTED_WORKER_NEXT_OPERATION_ID=").append(operationId + 1).append("\n")
@@ -114,9 +115,9 @@ public class DistributedComposeGenerator {
                 .append("      - SIMULATION_DISTRIBUTED_WORKER_RANDOM_SEED=").append(operation.randomSeed() == null ? 0 : operation.randomSeed()).append("\n");
     }
 
-    private void appendFinishStoreService(StringBuilder compose, int operationsCount) {
-        String finishTopic = "line-op-" + operationsCount + "-to-" + (operationsCount + 1);
-        compose.append("  productionline-finish-store-app:\n")
+    private void appendFinishStoreService(StringBuilder compose, int operationsCount, String routeId) {
+        String finishTopic = DistributedSimulationTopics.operationTopic(routeId, operationsCount, operationsCount + 1);
+        compose.append("  ").append(DistributedSimulationTopics.finishStoreServiceName(routeId)).append(":\n")
                 .append("    image: ").append(workerImage).append("\n")
                 .append("    depends_on:\n")
                 .append("      kafka:\n")
@@ -127,7 +128,8 @@ public class DistributedComposeGenerator {
                 .append("      - SPRING_MAIN_WEB_APPLICATION_TYPE=none\n")
                 .append("      - SIMULATION_DISTRIBUTED_FINISH_STORE_ENABLED=true\n")
                 .append("      - SIMULATION_DISTRIBUTED_FINISH_STORE_TOPIC=").append(finishTopic).append("\n")
-                .append("      - SIMULATION_DISTRIBUTED_FINISH_STORE_GROUP_ID=productionline-finish-store\n");
+                .append("      - SIMULATION_DISTRIBUTED_FINISH_STORE_GROUP_ID=")
+                .append(DistributedSimulationTopics.finishStoreGroupId(routeId)).append("\n");
     }
 
     private boolean isStore(String name) {

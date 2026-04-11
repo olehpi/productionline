@@ -15,6 +15,7 @@ class DistributedComposeGeneratorTest {
     @Test
     void generateReturnsComposeForValidLinearInput() {
         ProductionLine.LinearSimulationInput input = new ProductionLine.LinearSimulationInput(
+                "route-42",
                 3,
                 2,
                 "batch-42",
@@ -30,15 +31,16 @@ class DistributedComposeGeneratorTest {
 
         String compose = generator.generate(input);
 
-        assertTrue(compose.contains("productionline-operation1-app"));
+        assertTrue(compose.contains("productionline-route-42-operation1-app"));
         assertTrue(compose.contains("image: productionline-productionline"));
-        assertTrue(compose.contains("SIMULATION_DISTRIBUTED_WORKER_INBOUND_TOPIC=line-op-1-to-2"));
-        assertTrue(compose.contains("productionline-finish-store-app"));
+        assertTrue(compose.contains("SIMULATION_DISTRIBUTED_WORKER_INBOUND_TOPIC=route-42-line-op-1-to-2"));
+        assertTrue(compose.contains("productionline-route-42-finish-store-app"));
     }
 
     @Test
     void generateFailsWhenFinishStoreIdIsInvalid() {
         ProductionLine.LinearSimulationInput input = new ProductionLine.LinearSimulationInput(
+                "route-42",
                 3,
                 2,
                 "batch-42",

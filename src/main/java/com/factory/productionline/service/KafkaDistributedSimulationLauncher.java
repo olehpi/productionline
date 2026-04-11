@@ -36,6 +36,7 @@ import java.util.concurrent.ExecutionException;
 @ConditionalOnProperty(name = "simulation.kafka.enabled", havingValue = "true")
 public class KafkaDistributedSimulationLauncher implements DistributedSimulationLauncher {
 
+    private final DistributedRouteRegistry distributedRouteRegistry;
     private final KafkaAdmin kafkaAdmin;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
@@ -45,6 +46,7 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
     private final long batchCompletionPollIntervalMillis;
 
     public KafkaDistributedSimulationLauncher(
+            DistributedRouteRegistry distributedRouteRegistry,
             KafkaAdmin kafkaAdmin,
             KafkaTemplate<String, String> kafkaTemplate,
             ObjectMapper objectMapper,
@@ -53,6 +55,7 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
             @Value("${simulation.kafka.batch-completion-timeout-ms:120000}") long batchCompletionTimeoutMillis,
             @Value("${simulation.kafka.batch-completion-poll-interval-ms:250}") long batchCompletionPollIntervalMillis
     ) {
+        this.distributedRouteRegistry = distributedRouteRegistry;
         this.kafkaAdmin = kafkaAdmin;
         this.kafkaTemplate = kafkaTemplate;
         this.objectMapper = objectMapper;
@@ -65,14 +68,21 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
     @Override
     public DistributedSimulationStartResponse start(ProductionLine.LinearSimulationInput input) {
         validate(input);
+        distributedRouteRegistry.ensureRouteMatches(input);
+        distributedRouteRegistry.bindBatchToRoute(input.routeId(), input.batchId());
 
-        ensurePipelineTopics(input.operationsCount());
+        ensurePipelineTopics(input.routeId(), input.operationsCount());
 
-        String startTopic = topicName(0, 1);
-        String finishTopic = topicName(input.operationsCount(), input.operationsCount() + 1);
+        String startTopic = DistributedSimulationTopics.operationTopic(input.routeId(), 0, 1);
+        String finishTopic = DistributedSimulationTopics.operationTopic(
+                input.routeId(),
+                input.operationsCount(),
+                input.operationsCount() + 1
+        );
         double finishBatchTime = awaitBatchCompletion(input, startTopic, finishTopic);
 
         return new DistributedSimulationStartResponse(
+                input.routeId(),
                 input.batchId(),
                 input.partsCount(),
                 startTopic,
@@ -99,6 +109,7 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
 
             for (int partNumber = 1; partNumber <= input.partsCount(); partNumber++) {
                 DistributedPartMessage message = new DistributedPartMessage(
+                        input.routeId(),
                         partNumber,
                         input.batchId(),
                         input.startTau(),
@@ -107,6 +118,7 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
                 );
                 publish(startTopic, message);
                 publishOperationEvent(new DistributedOperationEvent(
+                        input.routeId(),
                         0,
                         1,
                         partNumber,
@@ -135,7 +147,7 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
             var records = consumer.poll(Duration.ofMillis(batchCompletionPollIntervalMillis));
             for (ConsumerRecord<String, String> record : records) {
                 DistributedPartMessage message = deserialize(record.value());
-                if (!input.batchId().equals(message.batchId())) {
+                if (!input.batchId().equals(message.batchId()) || !input.routeId().equals(message.routeId())) {
                     continue;
                 }
                 if (completedPartNumbers.add(message.partNumber())) {
@@ -189,16 +201,17 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
         }
     }
 
-    private void ensurePipelineTopics(int operationsCount) {
+    private void ensurePipelineTopics(String routeId, int operationsCount) {
         List<NewTopic> topics = new ArrayList<>();
         List<String> topicNames = new ArrayList<>();
         for (int operation = 0; operation <= operationsCount; operation++) {
-            String topicName = topicName(operation, operation + 1);
+            String topicName = DistributedSimulationTopics.operationTopic(routeId, operation, operation + 1);
             topics.add(new NewTopic(topicName, 1, (short) 1));
             topicNames.add(topicName);
         }
-        topics.add(new NewTopic(DistributedSimulationTopics.OPERATION_EVENTS_TOPIC, 1, (short) 1));
-        topicNames.add(DistributedSimulationTopics.OPERATION_EVENTS_TOPIC);
+        String operationEventsTopic = DistributedSimulationTopics.operationEventsTopic(routeId);
+        topics.add(new NewTopic(operationEventsTopic, 1, (short) 1));
+        topicNames.add(operationEventsTopic);
 
         try (AdminClient adminClient = AdminClient.create(kafkaAdmin.getConfigurationProperties())) {
             try {
@@ -217,7 +230,11 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
     private void publish(String topic, DistributedPartMessage message) {
         try {
             String payload = objectMapper.writeValueAsString(message);
-            kafkaTemplate.send(topic, message.batchId() + "-" + message.partNumber(), payload).get();
+            kafkaTemplate.send(
+                    topic,
+                    message.routeId() + "-" + message.batchId() + "-" + message.partNumber(),
+                    payload
+            ).get();
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Failed to serialize distributed part message", exception);
         } catch (InterruptedException exception) {
@@ -232,8 +249,8 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
         try {
             String payload = objectMapper.writeValueAsString(event);
             kafkaTemplate.send(
-                    DistributedSimulationTopics.OPERATION_EVENTS_TOPIC,
-                    event.batchId() + "-" + event.operationId() + "-" + event.partNumber(),
+                    DistributedSimulationTopics.operationEventsTopic(event.routeId()),
+                    event.routeId() + "-" + event.batchId() + "-" + event.operationId() + "-" + event.partNumber(),
                     payload
             ).get();
         } catch (JsonProcessingException exception) {
@@ -287,10 +304,6 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while waiting for distributed flow topics readiness", exception);
         }
-    }
-
-    private String topicName(int fromOperation, int toOperation) {
-        return "line-op-" + fromOperation + "-to-" + toOperation;
     }
 
     private String sanitize(String value) {

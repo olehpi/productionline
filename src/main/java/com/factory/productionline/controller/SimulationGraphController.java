@@ -62,6 +62,7 @@ public class SimulationGraphController {
         var model = productionLineMapper.toModel(request);
         distributedWorkerOrchestrationService.applyWorkers(model);
         return new DistributedWorkersApplyResponse(
+                model.routeId(),
                 model.batchId(),
                 model.operationsCount(),
                 model.operationsCount() + 1L
@@ -72,8 +73,9 @@ public class SimulationGraphController {
     @PostMapping("/linear/distributed/compose")
     @ResponseStatus(HttpStatus.OK)
     public DistributedComposeResponse generateDistributedCompose(@Valid @RequestBody LinearSimulationRequest request) {
-        String composeYaml = distributedComposeGenerator.generate(productionLineMapper.toModel(request));
-        return new DistributedComposeResponse("docker-compose.operations.yml", composeYaml);
+        var model = productionLineMapper.toModel(request);
+        String composeYaml = distributedComposeGenerator.generate(model);
+        return new DistributedComposeResponse(routeComposeFileName(model.routeId()), composeYaml);
     }
 
     @PostMapping("/linear/distributed/start")
@@ -82,10 +84,33 @@ public class SimulationGraphController {
         return distributedSimulationLauncher.start(productionLineMapper.toModel(request));
     }
 
-    @GetMapping("/linear/distributed/telemetry/{batchId}")
+    @GetMapping("/linear/distributed/telemetry/{routeId}")
     @ResponseStatus(HttpStatus.OK)
-    public LinearSimulationResponse getDistributedTelemetry(@PathVariable String batchId) {
-        return productionLineMapper.toResponse(distributedTelemetryQueryService.getBatchResult(batchId));
+    public LinearSimulationResponse getDistributedRouteTelemetry(@PathVariable String routeId) {
+        return productionLineMapper.toResponse(distributedTelemetryQueryService.getRouteResult(routeId));
+    }
+
+    @GetMapping("/linear/distributed/telemetry/{routeId}/{batchId}")
+    @ResponseStatus(HttpStatus.OK)
+    public LinearSimulationResponse getDistributedBatchTelemetry(
+            @PathVariable String routeId,
+            @PathVariable String batchId
+    ) {
+        return productionLineMapper.toResponse(distributedTelemetryQueryService.getBatchResult(routeId, batchId));
+    }
+
+    @GetMapping("/linear/distributed/telemetry/{routeId}/{batchId}/{partNumber}")
+    @ResponseStatus(HttpStatus.OK)
+    public LinearSimulationResponse getDistributedPartTelemetry(
+            @PathVariable String routeId,
+            @PathVariable String batchId,
+            @PathVariable int partNumber
+    ) {
+        return productionLineMapper.toResponse(distributedTelemetryQueryService.getPartResult(routeId, batchId, partNumber));
+    }
+
+    private String routeComposeFileName(String routeId) {
+        return "docker-compose.operations-" + routeId.replaceAll("[^A-Za-z0-9._-]", "_") + ".yml";
     }
 }
 

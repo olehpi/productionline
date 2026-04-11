@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 public class DockerComposeDistributedWorkerOrchestrationService implements DistributedWorkerOrchestrationService {
 
     private final DistributedComposeGenerator distributedComposeGenerator;
+    private final DistributedRouteRegistry distributedRouteRegistry;
     private final String composeProjectDir;
     private final String composeBaseFile;
     private final String composeOverrideFile;
@@ -29,6 +30,7 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
 
     public DockerComposeDistributedWorkerOrchestrationService(
             DistributedComposeGenerator distributedComposeGenerator,
+            DistributedRouteRegistry distributedRouteRegistry,
             @Value("${simulation.orchestration.compose.project-dir:.}") String composeProjectDir,
             @Value("${simulation.orchestration.compose.base-file:docker-compose.yml}") String composeBaseFile,
             @Value("${simulation.orchestration.compose.override-file:docker-compose.operations.yml}") String composeOverrideFile,
@@ -36,6 +38,7 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
             @Value("${simulation.orchestration.workers.ready-poll-interval-ms:3000}") long readyPollIntervalMillis
     ) {
         this.distributedComposeGenerator = distributedComposeGenerator;
+        this.distributedRouteRegistry = distributedRouteRegistry;
         this.composeProjectDir = composeProjectDir;
         this.composeBaseFile = composeBaseFile;
         this.composeOverrideFile = composeOverrideFile;
@@ -45,9 +48,11 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
 
     @Override
     public void applyWorkers(ProductionLine.LinearSimulationInput input) {
+        distributedRouteRegistry.registerRoute(input);
         String overrideYaml = distributedComposeGenerator.generate(input);
         Path projectDir = Path.of(composeProjectDir).toAbsolutePath().normalize();
-        Path overridePath = projectDir.resolve(composeOverrideFile);
+        Path overridePath = routeOverridePath(projectDir, input.routeId());
+        String overrideFileName = overridePath.getFileName().toString();
 
         try {
             Files.createDirectories(overridePath.getParent());
@@ -59,7 +64,7 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
         List<String> expectedServices = expectedWorkerServices(input);
 
         List<String> upCommand = new ArrayList<>(List.of(
-                "docker", "compose", "-f", composeBaseFile, "-f", composeOverrideFile, "up", "-d"
+                "docker", "compose", "-f", composeBaseFile, "-f", overrideFileName, "up", "-d"
         ));
         upCommand.addAll(expectedServices);
 
@@ -68,14 +73,14 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
                 "Failed to start operation workers with docker compose"
         );
 
-        waitForWorkers(projectDir, expectedServices);
+        waitForWorkers(projectDir, expectedServices, overrideFileName);
     }
 
-    private void waitForWorkers(Path projectDir, List<String> expectedServices) {
+    private void waitForWorkers(Path projectDir, List<String> expectedServices, String overrideFileName) {
         Instant deadline = Instant.now().plus(Duration.ofMillis(readyTimeoutMillis));
         while (Instant.now().isBefore(deadline)) {
             String output = runCommand(projectDir,
-                    List.of("docker", "compose", "-f", composeBaseFile, "-f", composeOverrideFile,
+                    List.of("docker", "compose", "-f", composeBaseFile, "-f", overrideFileName,
                             "ps", "--services", "--status", "running"),
                     "Failed to read running docker compose services"
             );
@@ -96,11 +101,24 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
     private List<String> expectedWorkerServices(ProductionLine.LinearSimulationInput input) {
         List<String> services = input.operations().stream()
                 .filter(operation -> !isStore(operation.name()))
-                .map(operation -> "productionline-operation" + operation.id() + "-app")
+                .map(operation -> DistributedSimulationTopics.workerServiceName(input.routeId(), operation.id()))
                 .sorted()
                 .collect(Collectors.toCollection(ArrayList::new));
-        services.add("productionline-finish-store-app");
+        services.add(DistributedSimulationTopics.finishStoreServiceName(input.routeId()));
         return services;
+    }
+
+    private Path routeOverridePath(Path projectDir, String routeId) {
+        String fileName = composeOverrideFile;
+        int extensionIndex = composeOverrideFile.lastIndexOf('.');
+        if (extensionIndex > 0) {
+            fileName = composeOverrideFile.substring(0, extensionIndex)
+                    + "-" + DistributedSimulationTopics.sanitize(routeId)
+                    + composeOverrideFile.substring(extensionIndex);
+        } else {
+            fileName = composeOverrideFile + "-" + DistributedSimulationTopics.sanitize(routeId);
+        }
+        return projectDir.resolve(fileName);
     }
 
     private String runCommand(Path projectDir, List<String> command, String failureMessage) {
