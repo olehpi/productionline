@@ -14,6 +14,8 @@ class DistributedComposeGeneratorTest {
 
     @Test
     void generateReturnsComposeForValidLinearInput() {
+        int operation1HostPort = generator.hostDebugPort("route-42", 1);
+        int finishStoreHostPort = generator.hostDebugPort("route-42", 3);
         ProductionLine.LinearSimulationInput input = new ProductionLine.LinearSimulationInput(
                 "route-42",
                 3,
@@ -34,10 +36,16 @@ class DistributedComposeGeneratorTest {
         assertTrue(compose.contains("productionline-route-42-operation1-app"));
         assertTrue(compose.contains("image: productionline-productionline"));
         assertTrue(compose.contains("SIMULATION_DISTRIBUTED_WORKER_INBOUND_TOPIC=route-42-line-op-1-to-2"));
-        assertTrue(compose.contains("- \"5101:5101\""));
+        assertTrue(compose.contains("- \"" + operation1HostPort + ":5101\""));
+        assertTrue(compose.contains("SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET=earliest"));
         assertTrue(compose.contains("JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5101"));
         assertTrue(compose.contains("productionline-route-42-finish-store-app"));
-        assertTrue(compose.contains("- \"5103:5103\""));
+        assertTrue(compose.contains("- \"" + finishStoreHostPort + ":5103\""));
+    }
+
+    @Test
+    void generateUsesDifferentHostDebugPortsForDifferentRoutes() {
+        assertTrue(generator.hostDebugPort("route100", 5) != generator.hostDebugPort("route105", 5));
     }
 
     @Test

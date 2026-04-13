@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 public class NoOpDistributedSimulationLauncher implements DistributedSimulationLauncher {
 
     @Override
-    public DistributedSimulationStartResponse start(ProductionLine.LinearSimulationInput input) {
+    public DistributedSimulationStartResponse start(ProductionLine.LinearSimulationInput input, int repetition) {
         throw new IllegalArgumentException("Kafka is disabled. Set simulation.kafka.enabled=true to start distributed flow");
     }
 }

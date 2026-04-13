@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 public class NoOpDistributedWorkerOrchestrationService implements DistributedWorkerOrchestrationService {
 
     @Override
-    public void applyWorkers(ProductionLine.LinearSimulationInput input) {
+    public void applyWorkers(ProductionLine.DistributedRouteInput input) {
         throw new IllegalStateException("API-driven distributed orchestration is disabled");
     }
 }

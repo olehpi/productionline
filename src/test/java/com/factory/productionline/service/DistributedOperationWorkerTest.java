@@ -22,9 +22,9 @@ class DistributedOperationWorkerTest {
                 7L
         );
 
-        DistributedPartMessage first = worker.processMessage(new DistributedPartMessage("route-42", 1, "batch-42", 50.0, 10.0, 60.0));
-        DistributedPartMessage second = worker.processMessage(new DistributedPartMessage("route-42", 2, "batch-42", 50.0, 10.0, 60.0));
-        DistributedPartMessage third = worker.processMessage(new DistributedPartMessage("route-42", 3, "batch-42", 50.0, 10.0, 60.0));
+        DistributedPartMessage first = worker.processMessage(new DistributedPartMessage("route-42", 1, "batch-42", 0, 50.0, 10.0, 60.0));
+        DistributedPartMessage second = worker.processMessage(new DistributedPartMessage("route-42", 2, "batch-42", 0, 50.0, 10.0, 60.0));
+        DistributedPartMessage third = worker.processMessage(new DistributedPartMessage("route-42", 3, "batch-42", 0, 50.0, 10.0, 60.0));
 
         assertThat(first.startTau()).isEqualTo(60.0);
         assertThat(first.finishTau()).isEqualTo(70.0);
@@ -46,13 +46,13 @@ class DistributedOperationWorkerTest {
                 1L
         );
 
-        worker.processMessage(new DistributedPartMessage("route-42", 1, "batch51", 0.0, 0.0, 0.0));
-        worker.processMessage(new DistributedPartMessage("route-42", 2, "batch51", 0.0, 0.0, 0.0));
-        worker.processMessage(new DistributedPartMessage("route-42", 3, "batch51", 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 1, "batch51", 0, 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 2, "batch51", 0, 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 3, "batch51", 0, 0.0, 0.0, 0.0));
 
-        DistributedPartMessage restartedFirst = worker.processMessage(new DistributedPartMessage("route-42", 1, "batch51", 0.0, 0.0, 0.0));
-        DistributedPartMessage restartedSecond = worker.processMessage(new DistributedPartMessage("route-42", 2, "batch51", 0.0, 0.0, 0.0));
-        DistributedPartMessage restartedThird = worker.processMessage(new DistributedPartMessage("route-42", 3, "batch51", 0.0, 0.0, 0.0));
+        DistributedPartMessage restartedFirst = worker.processMessage(new DistributedPartMessage("route-42", 1, "batch51", 0, 0.0, 0.0, 0.0));
+        DistributedPartMessage restartedSecond = worker.processMessage(new DistributedPartMessage("route-42", 2, "batch51", 0, 0.0, 0.0, 0.0));
+        DistributedPartMessage restartedThird = worker.processMessage(new DistributedPartMessage("route-42", 3, "batch51", 0, 0.0, 0.0, 0.0));
 
         assertThat(restartedFirst.startTau()).isEqualTo(0.0);
         assertThat(restartedFirst.finishTau()).isEqualTo(30.0);
@@ -74,13 +74,13 @@ class DistributedOperationWorkerTest {
                 1L
         );
 
-        worker.processMessage(new DistributedPartMessage("route-42", 1, "batchA", 0.0, 0.0, 0.0));
-        worker.processMessage(new DistributedPartMessage("route-42", 2, "batchA", 0.0, 0.0, 0.0));
-        worker.processMessage(new DistributedPartMessage("route-42", 3, "batchA", 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 1, "batchA", 0, 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 2, "batchA", 0, 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 3, "batchA", 0, 0.0, 0.0, 0.0));
 
-        DistributedPartMessage nextBatchFirst = worker.processMessage(new DistributedPartMessage("route-42", 1, "batchB", 0.0, 0.0, 0.0));
-        DistributedPartMessage nextBatchSecond = worker.processMessage(new DistributedPartMessage("route-42", 2, "batchB", 0.0, 0.0, 0.0));
-        DistributedPartMessage nextBatchThird = worker.processMessage(new DistributedPartMessage("route-42", 3, "batchB", 0.0, 0.0, 0.0));
+        DistributedPartMessage nextBatchFirst = worker.processMessage(new DistributedPartMessage("route-42", 1, "batchB", 0, 0.0, 0.0, 0.0));
+        DistributedPartMessage nextBatchSecond = worker.processMessage(new DistributedPartMessage("route-42", 2, "batchB", 0, 0.0, 0.0, 0.0));
+        DistributedPartMessage nextBatchThird = worker.processMessage(new DistributedPartMessage("route-42", 3, "batchB", 0, 0.0, 0.0, 0.0));
 
         assertThat(nextBatchFirst.startTau()).isEqualTo(90.0);
         assertThat(nextBatchFirst.finishTau()).isEqualTo(120.0);
@@ -102,17 +102,17 @@ class DistributedOperationWorkerTest {
                 1L
         );
 
-        worker.processMessage(new DistributedPartMessage("route-42", 1, "batchA", 0.0, 0.0, 0.0));
-        worker.processMessage(new DistributedPartMessage("route-42", 2, "batchA", 0.0, 0.0, 0.0));
-        worker.processMessage(new DistributedPartMessage("route-42", 3, "batchA", 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 1, "batchA", 0, 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 2, "batchA", 0, 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 3, "batchA", 0, 0.0, 0.0, 0.0));
 
-        worker.processMessage(new DistributedPartMessage("route-42", 1, "batchB", 0.0, 0.0, 0.0));
-        worker.processMessage(new DistributedPartMessage("route-42", 2, "batchB", 0.0, 0.0, 0.0));
-        worker.processMessage(new DistributedPartMessage("route-42", 3, "batchB", 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 1, "batchB", 0, 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 2, "batchB", 0, 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 3, "batchB", 0, 0.0, 0.0, 0.0));
 
-        DistributedPartMessage repeatedFirst = worker.processMessage(new DistributedPartMessage("route-42", 1, "batchB", 0.0, 0.0, 0.0));
-        DistributedPartMessage repeatedSecond = worker.processMessage(new DistributedPartMessage("route-42", 2, "batchB", 0.0, 0.0, 0.0));
-        DistributedPartMessage repeatedThird = worker.processMessage(new DistributedPartMessage("route-42", 3, "batchB", 0.0, 0.0, 0.0));
+        DistributedPartMessage repeatedFirst = worker.processMessage(new DistributedPartMessage("route-42", 1, "batchB", 0, 0.0, 0.0, 0.0));
+        DistributedPartMessage repeatedSecond = worker.processMessage(new DistributedPartMessage("route-42", 2, "batchB", 0, 0.0, 0.0, 0.0));
+        DistributedPartMessage repeatedThird = worker.processMessage(new DistributedPartMessage("route-42", 3, "batchB", 0, 0.0, 0.0, 0.0));
 
         assertThat(repeatedFirst.startTau()).isEqualTo(90.0);
         assertThat(repeatedFirst.finishTau()).isEqualTo(120.0);
@@ -120,5 +120,61 @@ class DistributedOperationWorkerTest {
         assertThat(repeatedSecond.finishTau()).isEqualTo(150.0);
         assertThat(repeatedThird.startTau()).isEqualTo(150.0);
         assertThat(repeatedThird.finishTau()).isEqualTo(180.0);
+    }
+
+    @Test
+    void processMessageKeepsMonteCarloRepetitionsIsolatedWithinSameBatchId() {
+        DistributedOperationWorker worker = new DistributedOperationWorker(
+                mock(KafkaTemplate.class),
+                new ObjectMapper(),
+                1,
+                2,
+                30.0,
+                0.0,
+                1L
+        );
+
+        worker.processMessage(new DistributedPartMessage("route-42", 1, "batchA", 1, 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 2, "batchA", 1, 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 3, "batchA", 1, 0.0, 0.0, 0.0));
+
+        DistributedPartMessage nextRepetitionFirst = worker.processMessage(new DistributedPartMessage("route-42", 1, "batchA", 2, 0.0, 0.0, 0.0));
+        DistributedPartMessage nextRepetitionSecond = worker.processMessage(new DistributedPartMessage("route-42", 2, "batchA", 2, 0.0, 0.0, 0.0));
+        DistributedPartMessage nextRepetitionThird = worker.processMessage(new DistributedPartMessage("route-42", 3, "batchA", 2, 0.0, 0.0, 0.0));
+
+        assertThat(nextRepetitionFirst.startTau()).isEqualTo(0.0);
+        assertThat(nextRepetitionFirst.finishTau()).isEqualTo(30.0);
+        assertThat(nextRepetitionSecond.startTau()).isEqualTo(30.0);
+        assertThat(nextRepetitionSecond.finishTau()).isEqualTo(60.0);
+        assertThat(nextRepetitionThird.startTau()).isEqualTo(60.0);
+        assertThat(nextRepetitionThird.finishTau()).isEqualTo(90.0);
+    }
+
+    @Test
+    void processMessageKeepsDifferentMonteCarloBatchIdsSequentialWithinSameRepetition() {
+        DistributedOperationWorker worker = new DistributedOperationWorker(
+                mock(KafkaTemplate.class),
+                new ObjectMapper(),
+                1,
+                2,
+                30.0,
+                0.0,
+                1L
+        );
+
+        worker.processMessage(new DistributedPartMessage("route-42", 1, "batchA", 1, 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 2, "batchA", 1, 0.0, 0.0, 0.0));
+        worker.processMessage(new DistributedPartMessage("route-42", 3, "batchA", 1, 0.0, 0.0, 0.0));
+
+        DistributedPartMessage otherBatchFirst = worker.processMessage(new DistributedPartMessage("route-42", 1, "batchB", 1, 0.0, 0.0, 0.0));
+        DistributedPartMessage otherBatchSecond = worker.processMessage(new DistributedPartMessage("route-42", 2, "batchB", 1, 0.0, 0.0, 0.0));
+        DistributedPartMessage otherBatchThird = worker.processMessage(new DistributedPartMessage("route-42", 3, "batchB", 1, 0.0, 0.0, 0.0));
+
+        assertThat(otherBatchFirst.startTau()).isEqualTo(90.0);
+        assertThat(otherBatchFirst.finishTau()).isEqualTo(120.0);
+        assertThat(otherBatchSecond.startTau()).isEqualTo(120.0);
+        assertThat(otherBatchSecond.finishTau()).isEqualTo(150.0);
+        assertThat(otherBatchThird.startTau()).isEqualTo(150.0);
+        assertThat(otherBatchThird.finishTau()).isEqualTo(180.0);
     }
 }

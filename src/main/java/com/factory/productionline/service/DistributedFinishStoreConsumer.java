@@ -28,10 +28,11 @@ public class DistributedFinishStoreConsumer {
     public void consume(String payload) {
         try {
             DistributedPartMessage message = objectMapper.readValue(payload, DistributedPartMessage.class);
-            log.info("finishStore received part {} for route {} batch {} at finishTau={}",
+            log.info("finishStore received part {} for route {} batch {} repetition {} at finishTau={}",
                     message.partNumber(),
                     message.routeId(),
                     message.batchId(),
+                    message.repetition(),
                     message.finishTau());
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Failed to deserialize finishStore message", exception);

@@ -16,7 +16,15 @@ public class DistributedRouteRegistry {
     public void registerRoute(ProductionLine.LinearSimulationInput input) {
         RegisteredRoute route = RegisteredRoute.from(input);
         RegisteredRoute existing = routesByRouteId.putIfAbsent(input.routeId(), route);
-        if (existing != null) {
+        if (existing != null && !existing.equals(route)) {
+            throw new IllegalStateException("Route with routeId=" + input.routeId() + " already exists");
+        }
+    }
+
+    public void registerRoute(ProductionLine.DistributedRouteInput input) {
+        RegisteredRoute route = RegisteredRoute.from(input);
+        RegisteredRoute existing = routesByRouteId.putIfAbsent(input.routeId(), route);
+        if (existing != null && !existing.equals(route)) {
             throw new IllegalStateException("Route with routeId=" + input.routeId() + " already exists");
         }
     }
@@ -59,6 +67,33 @@ public class DistributedRouteRegistry {
         }
     }
 
+    public ProductionLine.LinearSimulationInput createLinearSimulationInput(
+            String routeId,
+            int partsCount,
+            String batchId,
+            double startTau,
+            double finishTau
+    ) {
+        RegisteredRoute route = getRegisteredRoute(routeId);
+        return new ProductionLine.LinearSimulationInput(
+                routeId,
+                partsCount,
+                route.operationsCount(),
+                batchId,
+                startTau,
+                finishTau,
+                route.operations().stream()
+                        .map(operation -> new ProductionLine.LinearOperationInput(
+                                operation.id(),
+                                operation.name(),
+                                operation.tauMean(),
+                                operation.tauSigma(),
+                                operation.randomSeed()
+                        ))
+                        .toList()
+        );
+    }
+
     private RegisteredRoute getRegisteredRoute(String routeId) {
         RegisteredRoute route = routesByRouteId.get(routeId);
         if (route == null) {
@@ -86,7 +121,35 @@ public class DistributedRouteRegistry {
             );
         }
 
+        private static RegisteredRoute from(ProductionLine.DistributedRouteInput input) {
+            return new RegisteredRoute(
+                    input.operationsCount(),
+                    input.operations().stream()
+                            .map(operation -> new RegisteredOperation(
+                                    operation.id(),
+                                    operation.name(),
+                                    operation.tauMean(),
+                                    operation.tauSigma(),
+                                    operation.randomSeed()
+                            ))
+                            .toList()
+            );
+        }
+
         private boolean matches(ProductionLine.LinearSimulationInput input) {
+            return operationsCount == input.operationsCount()
+                    && operations.equals(input.operations().stream()
+                    .map(operation -> new RegisteredOperation(
+                            operation.id(),
+                            operation.name(),
+                            operation.tauMean(),
+                            operation.tauSigma(),
+                            operation.randomSeed()
+                    ))
+                    .toList());
+        }
+
+        private boolean matches(ProductionLine.DistributedRouteInput input) {
             return operationsCount == input.operationsCount()
                     && operations.equals(input.operations().stream()
                     .map(operation -> new RegisteredOperation(

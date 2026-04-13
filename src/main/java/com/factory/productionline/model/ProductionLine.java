@@ -72,4 +72,11 @@ public record ProductionLine(
             Long randomSeed
     ) {
     }
+
+    public record DistributedRouteInput(
+            String routeId,
+            int operationsCount,
+            List<LinearOperationInput> operations
+    ) {
+    }
 }

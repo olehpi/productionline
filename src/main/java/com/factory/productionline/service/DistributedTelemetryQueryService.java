@@ -112,7 +112,7 @@ public class DistributedTelemetryQueryService {
                     }
                     eventsByOperation
                             .computeIfAbsent(event.operationId(), ignored -> new HashMap<>())
-                            .put(event.batchId() + "-" + event.partNumber(), event);
+                            .put(event.batchId() + "-" + event.repetition() + "-" + event.partNumber(), event);
                 }
             }
 
@@ -142,12 +142,15 @@ public class DistributedTelemetryQueryService {
         double finalTau = 0d;
 
         eventsByOperation.getOrDefault(0, Map.of()).values().stream()
-                .sorted(Comparator.comparing(DistributedOperationEvent::batchId).thenComparingInt(DistributedOperationEvent::partNumber))
+                .sorted(Comparator.comparing(DistributedOperationEvent::batchId)
+                        .thenComparingInt(DistributedOperationEvent::repetition)
+                        .thenComparingInt(DistributedOperationEvent::partNumber))
                 .map(event -> new DistributedBatchResult.KafkaTransferMessage(
                         event.operationId(),
                         event.nextOperationId(),
                         event.partNumber(),
                         event.batchId(),
+                        event.repetition(),
                         event.startTau(),
                         event.processingTau(),
                         event.finishTau()
@@ -156,7 +159,9 @@ public class DistributedTelemetryQueryService {
 
         for (int operationId = 1; operationId <= maxOperationId; operationId++) {
             List<DistributedOperationEvent> orderedEvents = eventsByOperation.getOrDefault(operationId, Map.of()).values().stream()
-                    .sorted(Comparator.comparing(DistributedOperationEvent::batchId).thenComparingInt(DistributedOperationEvent::partNumber))
+                    .sorted(Comparator.comparing(DistributedOperationEvent::batchId)
+                            .thenComparingInt(DistributedOperationEvent::repetition)
+                            .thenComparingInt(DistributedOperationEvent::partNumber))
                     .toList();
 
             timelines.add(new DistributedBatchResult.OperationTimeline(
@@ -165,6 +170,7 @@ public class DistributedTelemetryQueryService {
                             .map(event -> new DistributedBatchResult.PartProcessingEvent(
                                     event.partNumber(),
                                     event.batchId(),
+                                    event.repetition(),
                                     event.startTau(),
                                     event.processingTau(),
                                     event.finishTau()
@@ -178,6 +184,7 @@ public class DistributedTelemetryQueryService {
                             event.nextOperationId(),
                             event.partNumber(),
                             event.batchId(),
+                            event.repetition(),
                             event.startTau(),
                             event.processingTau(),
                             event.finishTau()

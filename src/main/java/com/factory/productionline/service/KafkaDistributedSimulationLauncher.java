@@ -30,7 +30,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Component
 @ConditionalOnProperty(name = "simulation.kafka.enabled", havingValue = "true")
@@ -44,6 +46,8 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
     private final long topicsReadyPollIntervalMillis;
     private final long batchCompletionTimeoutMillis;
     private final long batchCompletionPollIntervalMillis;
+    private final Set<String> initializedRoutes;
+    private final AtomicInteger monteCarloRepetitionSequence;
 
     public KafkaDistributedSimulationLauncher(
             DistributedRouteRegistry distributedRouteRegistry,
@@ -63,27 +67,26 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
         this.topicsReadyPollIntervalMillis = topicsReadyPollIntervalMillis;
         this.batchCompletionTimeoutMillis = batchCompletionTimeoutMillis;
         this.batchCompletionPollIntervalMillis = batchCompletionPollIntervalMillis;
+        this.initializedRoutes = ConcurrentHashMap.newKeySet();
+        this.monteCarloRepetitionSequence = new AtomicInteger(1);
     }
 
     @Override
-    public DistributedSimulationStartResponse start(ProductionLine.LinearSimulationInput input) {
+    public DistributedSimulationStartResponse start(ProductionLine.LinearSimulationInput input, int repetition) {
         validate(input);
         distributedRouteRegistry.ensureRouteMatches(input);
         distributedRouteRegistry.bindBatchToRoute(input.routeId(), input.batchId());
 
-        ensurePipelineTopics(input.routeId(), input.operationsCount());
+        ensurePipelineTopicsInitialized(input.routeId(), input.operationsCount());
 
-        String startTopic = DistributedSimulationTopics.operationTopic(input.routeId(), 0, 1);
-        String finishTopic = DistributedSimulationTopics.operationTopic(
-                input.routeId(),
-                input.operationsCount(),
-                input.operationsCount() + 1
-        );
-        double finishBatchTime = awaitBatchCompletion(input, startTopic, finishTopic);
+        String startTopic = startTopic(input);
+        String finishTopic = finishTopic(input);
+        double finishBatchTime = awaitBatchCompletion(input, repetition, startTopic, finishTopic);
 
         return new DistributedSimulationStartResponse(
                 input.routeId(),
                 input.batchId(),
+                repetition,
                 input.partsCount(),
                 startTopic,
                 finishTopic,
@@ -91,79 +94,178 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
         );
     }
 
+    @Override
+    public List<DistributedSimulationStartResponse> startRepeated(
+            ProductionLine.LinearSimulationInput input,
+            int repetitions
+    ) {
+        validate(input);
+        distributedRouteRegistry.ensureRouteMatches(input);
+        distributedRouteRegistry.bindBatchToRoute(input.routeId(), input.batchId());
+
+        ensurePipelineTopicsInitialized(input.routeId(), input.operationsCount());
+
+        String startTopic = startTopic(input);
+        String finishTopic = finishTopic(input);
+        List<DistributedSimulationStartResponse> responses = new ArrayList<>(repetitions);
+        int repetitionBase = nextMonteCarloRepetitionBase(repetitions);
+
+        try (KafkaConsumer<String, String> consumer = createFinishTopicConsumer(input.batchId(), finishTopic)) {
+            List<TopicPartition> partitions = assignFinishTopicConsumer(consumer, finishTopic);
+            seekToCapturedEndOffsets(consumer, partitions);
+
+            for (int repetition = 1; repetition <= repetitions; repetition++) {
+                int internalRepetition = repetitionBase + repetition - 1;
+                double finishBatchTime = awaitBatchCompletion(consumer, input, internalRepetition, startTopic, finishTopic);
+                responses.add(new DistributedSimulationStartResponse(
+                        input.routeId(),
+                        input.batchId(),
+                        repetition,
+                        input.partsCount(),
+                        startTopic,
+                        finishTopic,
+                        finishBatchTime
+                ));
+            }
+        }
+
+        return List.copyOf(responses);
+    }
+
+    @Override
+    public List<List<DistributedSimulationStartResponse>> startRouteRepeated(
+            List<ProductionLine.LinearSimulationInput> inputs,
+            int repetitions
+    ) {
+        if (inputs.isEmpty()) {
+            return List.of();
+        }
+
+        ProductionLine.LinearSimulationInput firstInput = inputs.get(0);
+        for (ProductionLine.LinearSimulationInput input : inputs) {
+            validate(input);
+            distributedRouteRegistry.ensureRouteMatches(input);
+            distributedRouteRegistry.bindBatchToRoute(input.routeId(), input.batchId());
+        }
+
+        ensurePipelineTopicsInitialized(firstInput.routeId(), firstInput.operationsCount());
+
+        String finishTopic = finishTopic(firstInput);
+        List<List<DistributedSimulationStartResponse>> responsesByBatch = new ArrayList<>(inputs.size());
+        for (int batchIndex = 0; batchIndex < inputs.size(); batchIndex++) {
+            responsesByBatch.add(new ArrayList<>(repetitions));
+        }
+        int repetitionBase = nextMonteCarloRepetitionBase(repetitions);
+
+        try (KafkaConsumer<String, String> consumer = createFinishTopicConsumer(firstInput.routeId(), finishTopic)) {
+            List<TopicPartition> partitions = assignFinishTopicConsumer(consumer, finishTopic);
+            seekToCapturedEndOffsets(consumer, partitions);
+
+            for (int repetition = 1; repetition <= repetitions; repetition++) {
+                int internalRepetition = repetitionBase + repetition - 1;
+                for (int batchIndex = 0; batchIndex < inputs.size(); batchIndex++) {
+                    ProductionLine.LinearSimulationInput input = inputs.get(batchIndex);
+                    String startTopic = startTopic(input);
+                    double finishBatchTime = awaitBatchCompletion(consumer, input, internalRepetition, startTopic, finishTopic);
+                    responsesByBatch.get(batchIndex).add(new DistributedSimulationStartResponse(
+                            input.routeId(),
+                            input.batchId(),
+                            repetition,
+                            input.partsCount(),
+                            startTopic,
+                            finishTopic,
+                            finishBatchTime
+                    ));
+                }
+            }
+        }
+
+        return responsesByBatch.stream()
+                .map(List::copyOf)
+                .toList();
+    }
+
     private double awaitBatchCompletion(
             ProductionLine.LinearSimulationInput input,
+            int repetition,
             String startTopic,
             String finishTopic
     ) {
         try (KafkaConsumer<String, String> consumer = createFinishTopicConsumer(input.batchId(), finishTopic)) {
-            List<TopicPartition> partitions = consumer.partitionsFor(finishTopic).stream()
-                    .map(partitionInfo -> new TopicPartition(partitionInfo.topic(), partitionInfo.partition()))
-                    .toList();
-            if (partitions.isEmpty()) {
-                throw new IllegalStateException("No partitions available for finish topic: " + finishTopic);
-            }
-
-            consumer.assign(partitions);
-            consumer.seekToEnd(partitions);
-
-            for (int partNumber = 1; partNumber <= input.partsCount(); partNumber++) {
-                DistributedPartMessage message = new DistributedPartMessage(
-                        input.routeId(),
-                        partNumber,
-                        input.batchId(),
-                        input.startTau(),
-                        0d,
-                        input.startTau()
-                );
-                publish(startTopic, message);
-                publishOperationEvent(new DistributedOperationEvent(
-                        input.routeId(),
-                        0,
-                        1,
-                        partNumber,
-                        input.batchId(),
-                        input.startTau(),
-                        0d,
-                        input.startTau()
-                ));
-            }
-            kafkaTemplate.flush();
-
-            return waitForFinishedParts(consumer, input, finishTopic);
+            List<TopicPartition> partitions = assignFinishTopicConsumer(consumer, finishTopic);
+            seekToCapturedEndOffsets(consumer, partitions);
+            return awaitBatchCompletion(consumer, input, repetition, startTopic, finishTopic);
         }
+    }
+
+    private double awaitBatchCompletion(
+            KafkaConsumer<String, String> consumer,
+            ProductionLine.LinearSimulationInput input,
+            int repetition,
+            String startTopic,
+            String finishTopic
+    ) {
+        for (int partNumber = 1; partNumber <= input.partsCount(); partNumber++) {
+            DistributedPartMessage message = new DistributedPartMessage(
+                    input.routeId(),
+                    partNumber,
+                    input.batchId(),
+                    repetition,
+                    input.startTau(),
+                    0d,
+                    input.startTau()
+            );
+            publish(startTopic, message);
+            publishOperationEvent(new DistributedOperationEvent(
+                    input.routeId(),
+                    0,
+                    1,
+                    partNumber,
+                    input.batchId(),
+                    repetition,
+                    input.startTau(),
+                    0d,
+                    input.startTau()
+            ));
+        }
+        kafkaTemplate.flush();
+
+        return waitForFinishedParts(consumer, input, repetition, finishTopic);
     }
 
     private double waitForFinishedParts(
             KafkaConsumer<String, String> consumer,
             ProductionLine.LinearSimulationInput input,
+            int repetition,
             String finishTopic
     ) {
         Instant deadline = Instant.now().plus(Duration.ofMillis(batchCompletionTimeoutMillis));
-        Set<Integer> completedPartNumbers = new HashSet<>();
+        Set<String> completedParts = new HashSet<>();
         double finishBatchTime = input.startTau();
 
-        while (Instant.now().isBefore(deadline) && completedPartNumbers.size() < input.partsCount()) {
+        while (Instant.now().isBefore(deadline) && completedParts.size() < input.partsCount()) {
             var records = consumer.poll(Duration.ofMillis(batchCompletionPollIntervalMillis));
             for (ConsumerRecord<String, String> record : records) {
                 DistributedPartMessage message = deserialize(record.value());
-                if (!input.batchId().equals(message.batchId()) || !input.routeId().equals(message.routeId())) {
+                if (!input.batchId().equals(message.batchId())
+                        || !input.routeId().equals(message.routeId())
+                        || repetition != message.repetition()) {
                     continue;
                 }
-                if (completedPartNumbers.add(message.partNumber())) {
+                if (completedParts.add(completedPartKey(message))) {
                     finishBatchTime = Math.max(finishBatchTime, message.finishTau());
                 }
             }
         }
 
-        if (completedPartNumbers.size() < input.partsCount()) {
+        if (completedParts.size() < input.partsCount()) {
             throw new IllegalStateException(
                     "Timed out waiting for batch completion on topic "
                             + finishTopic
                             + ": expected "
                             + input.partsCount()
                             + " unique parts, got "
-                            + completedPartNumbers.size()
+                            + completedParts.size()
             );
         }
 
@@ -192,6 +294,24 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
         throw new IllegalStateException("Timed out waiting for finish topic readiness: " + finishTopic);
     }
 
+    private List<TopicPartition> assignFinishTopicConsumer(KafkaConsumer<String, String> consumer, String finishTopic) {
+        List<TopicPartition> partitions = consumer.partitionsFor(finishTopic).stream()
+                .map(partitionInfo -> new TopicPartition(partitionInfo.topic(), partitionInfo.partition()))
+                .toList();
+        if (partitions.isEmpty()) {
+            throw new IllegalStateException("No partitions available for finish topic: " + finishTopic);
+        }
+        consumer.assign(partitions);
+        return partitions;
+    }
+
+    private void seekToCapturedEndOffsets(KafkaConsumer<String, String> consumer, List<TopicPartition> partitions) {
+        Map<TopicPartition, Long> endOffsets = consumer.endOffsets(partitions);
+        for (TopicPartition partition : partitions) {
+            consumer.seek(partition, endOffsets.getOrDefault(partition, 0L));
+        }
+    }
+
     private void validate(ProductionLine.LinearSimulationInput input) {
         if (input.operationsCount() <= 0) {
             throw new IllegalArgumentException("operationsCount must be greater than 0");
@@ -199,6 +319,15 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
         if (input.partsCount() <= 0) {
             throw new IllegalArgumentException("partsCount must be greater than 0");
         }
+    }
+
+    private void ensurePipelineTopicsInitialized(String routeId, int operationsCount) {
+        String routeKey = routeId + "-" + operationsCount;
+        if (initializedRoutes.contains(routeKey)) {
+            return;
+        }
+        ensurePipelineTopics(routeId, operationsCount);
+        initializedRoutes.add(routeKey);
     }
 
     private void ensurePipelineTopics(String routeId, int operationsCount) {
@@ -232,7 +361,7 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
             String payload = objectMapper.writeValueAsString(message);
             kafkaTemplate.send(
                     topic,
-                    message.routeId() + "-" + message.batchId() + "-" + message.partNumber(),
+                    partMessageKey(message),
                     payload
             ).get();
         } catch (JsonProcessingException exception) {
@@ -250,7 +379,7 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
             String payload = objectMapper.writeValueAsString(event);
             kafkaTemplate.send(
                     DistributedSimulationTopics.operationEventsTopic(event.routeId()),
-                    event.routeId() + "-" + event.batchId() + "-" + event.operationId() + "-" + event.partNumber(),
+                    operationEventKey(event),
                     payload
             ).get();
         } catch (JsonProcessingException exception) {
@@ -281,6 +410,26 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
         return false;
     }
 
+    private String completedPartKey(DistributedPartMessage message) {
+        return message.batchId() + "-" + message.repetition() + "-" + message.partNumber();
+    }
+
+    private String partMessageKey(DistributedPartMessage message) {
+        return message.routeId() + "-" + completedPartKey(message);
+    }
+
+    private String operationEventKey(DistributedOperationEvent event) {
+        return event.routeId()
+                + "-"
+                + event.batchId()
+                + "-"
+                + event.repetition()
+                + "-"
+                + event.operationId()
+                + "-"
+                + event.partNumber();
+    }
+
     private void waitForTopicsReady(AdminClient adminClient, Collection<String> topicNames) throws Exception {
         Instant deadline = Instant.now().plus(Duration.ofMillis(topicsReadyTimeoutMillis));
         Set<String> expectedTopics = new HashSet<>(topicNames);
@@ -306,7 +455,23 @@ public class KafkaDistributedSimulationLauncher implements DistributedSimulation
         }
     }
 
+    private int nextMonteCarloRepetitionBase(int repetitions) {
+        return monteCarloRepetitionSequence.getAndAdd(Math.max(repetitions, 1));
+    }
+
     private String sanitize(String value) {
         return value == null ? "batch" : value.replaceAll("[^A-Za-z0-9._-]", "_");
+    }
+
+    private String startTopic(ProductionLine.LinearSimulationInput input) {
+        return DistributedSimulationTopics.operationTopic(input.routeId(), 0, 1);
+    }
+
+    private String finishTopic(ProductionLine.LinearSimulationInput input) {
+        return DistributedSimulationTopics.operationTopic(
+                input.routeId(),
+                input.operationsCount(),
+                input.operationsCount() + 1
+        );
     }
 }

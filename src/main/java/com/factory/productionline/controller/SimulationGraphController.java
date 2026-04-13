@@ -1,14 +1,21 @@
 package com.factory.productionline.controller;
 
 import com.factory.productionline.graph.DistributedComposeResponse;
+import com.factory.productionline.graph.DistributedStartRequest;
+import com.factory.productionline.graph.DistributedStartResponse;
+import com.factory.productionline.graph.DistributedWorkersApplyRequest;
 import com.factory.productionline.graph.DistributedWorkersApplyResponse;
 import com.factory.productionline.graph.DistributedSimulationStartResponse;
 import com.factory.productionline.graph.LinearSimulationRequest;
 import com.factory.productionline.graph.LinearSimulationResponse;
+import com.factory.productionline.graph.MonteCarloSimulationRequest;
+import com.factory.productionline.graph.MonteCarloSimulationResponse;
 import com.factory.productionline.graph.ProductionLineMapper;
 import com.factory.productionline.graph.ProductionLineRequest;
 import com.factory.productionline.graph.ProductionLineResponse;
 import com.factory.productionline.service.DistributedComposeGenerator;
+import com.factory.productionline.service.DistributedMonteCarloSimulationService;
+import com.factory.productionline.service.DistributedRouteRegistry;
 import com.factory.productionline.service.DistributedSimulationLauncher;
 import com.factory.productionline.service.DistributedTelemetryQueryService;
 import com.factory.productionline.service.DistributedWorkerOrchestrationService;
@@ -30,6 +37,8 @@ public class SimulationGraphController {
     private final SimulationGraphService simulationGraphService;
     private final ProductionLineMapper productionLineMapper;
     private final DistributedSimulationLauncher distributedSimulationLauncher;
+    private final DistributedMonteCarloSimulationService distributedMonteCarloSimulationService;
+    private final DistributedRouteRegistry distributedRouteRegistry;
     private final DistributedTelemetryQueryService distributedTelemetryQueryService;
     private final DistributedComposeGenerator distributedComposeGenerator;
     private final DistributedWorkerOrchestrationService distributedWorkerOrchestrationService;
@@ -38,6 +47,8 @@ public class SimulationGraphController {
             SimulationGraphService simulationGraphService,
             ProductionLineMapper productionLineMapper,
             DistributedSimulationLauncher distributedSimulationLauncher,
+            DistributedMonteCarloSimulationService distributedMonteCarloSimulationService,
+            DistributedRouteRegistry distributedRouteRegistry,
             DistributedTelemetryQueryService distributedTelemetryQueryService,
             DistributedComposeGenerator distributedComposeGenerator,
             DistributedWorkerOrchestrationService distributedWorkerOrchestrationService
@@ -45,6 +56,8 @@ public class SimulationGraphController {
         this.simulationGraphService = simulationGraphService;
         this.productionLineMapper = productionLineMapper;
         this.distributedSimulationLauncher = distributedSimulationLauncher;
+        this.distributedMonteCarloSimulationService = distributedMonteCarloSimulationService;
+        this.distributedRouteRegistry = distributedRouteRegistry;
         this.distributedTelemetryQueryService = distributedTelemetryQueryService;
         this.distributedComposeGenerator = distributedComposeGenerator;
         this.distributedWorkerOrchestrationService = distributedWorkerOrchestrationService;
@@ -58,15 +71,26 @@ public class SimulationGraphController {
 
     @PostMapping("/linear/distributed/apply")
     @ResponseStatus(HttpStatus.OK)
-    public DistributedWorkersApplyResponse applyDistributedWorkers(@Valid @RequestBody LinearSimulationRequest request) {
-        var model = productionLineMapper.toModel(request);
-        distributedWorkerOrchestrationService.applyWorkers(model);
-        return new DistributedWorkersApplyResponse(
-                model.routeId(),
-                model.batchId(),
-                model.operationsCount(),
-                model.operationsCount() + 1L
-        );
+    public DistributedWorkersApplyResponse applyDistributedWorkers(@Valid @RequestBody DistributedWorkersApplyRequest request) {
+        var routes = request.routes().stream()
+                .map(productionLineMapper::toModel)
+                .toList();
+
+        routes.forEach(distributedWorkerOrchestrationService::applyWorkers);
+
+        var routeResults = routes.stream()
+                .map(route -> new DistributedWorkersApplyResponse.RouteWorkersApplyResult(
+                        route.routeId(),
+                        route.operationsCount(),
+                        route.operationsCount() + 1L
+                ))
+                .toList();
+
+        long totalServicesPrepared = routeResults.stream()
+                .mapToLong(DistributedWorkersApplyResponse.RouteWorkersApplyResult::servicesPrepared)
+                .sum();
+
+        return new DistributedWorkersApplyResponse(routeResults, totalServicesPrepared);
     }
 
 
@@ -80,8 +104,41 @@ public class SimulationGraphController {
 
     @PostMapping("/linear/distributed/start")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public DistributedSimulationStartResponse startDistributedLinearSimulation(@Valid @RequestBody LinearSimulationRequest request) {
-        return distributedSimulationLauncher.start(productionLineMapper.toModel(request));
+    public DistributedStartResponse startDistributedLinearSimulation(@Valid @RequestBody DistributedStartRequest request) {
+        return new DistributedStartResponse(
+                request.routes().stream()
+                        .map(route -> new DistributedStartResponse.RouteStartResult(
+                                route.routeId(),
+                                route.batches().stream()
+                                        .map(batch -> distributedRouteRegistry.createLinearSimulationInput(
+                                                route.routeId(),
+                                                batch.partsCount(),
+                                                batch.batchId(),
+                                                batch.startTau(),
+                                                batch.finishTau()
+                                        ))
+                                        .map(distributedSimulationLauncher::start)
+                                        .toList()
+                        ))
+                        .toList()
+        );
+    }
+
+    @PostMapping("/linear/distributed/monte-carlo")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public MonteCarloSimulationResponse startDistributedMonteCarloSimulation(@Valid @RequestBody MonteCarloSimulationRequest request) {
+        return new MonteCarloSimulationResponse(
+                request.repetitions(),
+                request.routes().stream()
+                        .map(route -> distributedMonteCarloSimulationService.runRoute(
+                                route.routeId(),
+                                route.batches().stream()
+                                        .map(batch -> productionLineMapper.toModel(route, batch))
+                                        .toList(),
+                                request.repetitions()
+                        ))
+                        .toList()
+        );
     }
 
     @GetMapping("/linear/distributed/telemetry/{routeId}")

@@ -16,6 +16,7 @@ public record DistributedBatchResult(
     public record PartProcessingEvent(
             int partNumber,
             String batchId,
+            int repetition,
             double startTau,
             double processingTau,
             double finishTau
@@ -27,6 +28,7 @@ public record DistributedBatchResult(
             int toOperation,
             int partNumber,
             String batchId,
+            int repetition,
             double processingStartTau,
             double processingTau,
             double availableAtTau

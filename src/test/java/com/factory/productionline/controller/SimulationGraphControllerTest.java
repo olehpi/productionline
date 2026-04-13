@@ -1,11 +1,15 @@
 package com.factory.productionline.controller;
 
+import com.factory.productionline.model.ProductionLine;
+import com.factory.productionline.service.DistributedRouteRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -18,6 +22,9 @@ class SimulationGraphControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private DistributedRouteRegistry distributedRouteRegistry;
 
     @Test
     void buildGraphReturnsProductionLineForValidPayload() throws Exception {
@@ -224,16 +231,16 @@ class SimulationGraphControllerTest {
     void applyDistributedWorkersReturnsConflictWhenApiOrchestrationDisabled() throws Exception {
         String payload = """
                 {
-                  "routeId": "route-42",
-                  "partsCount": 3,
-                  "batchId": "batch-42",
-                  "startTau": 0.0,
-                  "finishTau": 30.0,
-                  "operations": [
-                    { "id": 0, "name": "startStore", "tauMean": 0.0, "tauSigma": 0.0, "randomSeed": 0 },
-                    { "id": 1, "name": "Op01", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 1 },
-                    { "id": 2, "name": "Op02", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 2 },
-                    { "id": 3, "name": "finishStore", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 0 }
+                  "routes": [
+                    {
+                      "routeId": "route-42",
+                      "operations": [
+                        { "id": 0, "name": "startStore", "tauMean": 0.0, "tauSigma": 0.0, "randomSeed": 0 },
+                        { "id": 1, "name": "Op01", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 1 },
+                        { "id": 2, "name": "Op02", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 2 },
+                        { "id": 3, "name": "finishStore", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 0 }
+                      ]
+                    }
                   ]
                 }
                 """;
@@ -248,23 +255,71 @@ class SimulationGraphControllerTest {
 
     @Test
     void startDistributedSimulationReturnsAcceptedWithKafkaTopics() throws Exception {
+        distributedRouteRegistry.registerRoute(new ProductionLine.DistributedRouteInput(
+                "route-42",
+                2,
+                List.of(
+                        new ProductionLine.LinearOperationInput(0, "startStore", 0.0, 0.0, 0L),
+                        new ProductionLine.LinearOperationInput(1, "Op01", 10.0, 0.0, 1L),
+                        new ProductionLine.LinearOperationInput(2, "Op02", 10.0, 0.0, 2L),
+                        new ProductionLine.LinearOperationInput(3, "finishStore", 10.0, 0.0, 0L)
+                )
+        ));
+
         String payload = """
                 {
-                  "routeId": "route-42",
-                  "partsCount": 3,
-                  "batchId": "batch-42",
-                  "startTau": 0.0,
-                  "finishTau": 30.0,
-                  "operations": [
-                    { "id": 0, "name": "startStore", "tauMean": 0.0, "tauSigma": 0.0, "randomSeed": 0 },
-                    { "id": 1, "name": "Op01", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 1 },
-                    { "id": 2, "name": "Op02", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 2 },
-                    { "id": 3, "name": "finishStore", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 0 }
+                  "routes": [
+                    {
+                      "routeId": "route-42",
+                      "batches": [
+                        {
+                          "batchId": "batch-42",
+                          "partsCount": 3,
+                          "startTau": 0.0,
+                          "finishTau": 30.0
+                        }
+                      ]
+                    }
                   ]
                 }
                 """;
 
         mockMvc.perform(post("/api/simulation-graph/linear/distributed/start")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Invalid production line configuration"))
+                .andExpect(jsonPath("$.detail").value("Kafka is disabled. Set simulation.kafka.enabled=true to start distributed flow"));
+    }
+
+    @Test
+    void monteCarloSimulationReturnsBadRequestWhenKafkaDisabled() throws Exception {
+        String payload = """
+                {
+                  "routes": [
+                    {
+                      "routeId": "route-42",
+                      "operations": [
+                        { "id": 0, "name": "startStore", "tauMean": 0.0, "tauSigma": 0.0, "randomSeed": 0 },
+                        { "id": 1, "name": "Op01", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 1 },
+                        { "id": 2, "name": "Op02", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 2 },
+                        { "id": 3, "name": "finishStore", "tauMean": 10.0, "tauSigma": 0.0, "randomSeed": 0 }
+                      ],
+                      "batches": [
+                        {
+                          "batchId": "batch-42",
+                          "partsCount": 3,
+                          "startTau": 0.0,
+                          "finishTau": 30.0
+                        }
+                      ]
+                    }
+                  ],
+                  "repetitions": 5
+                }
+                """;
+
+        mockMvc.perform(post("/api/simulation-graph/linear/distributed/monte-carlo")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(payload))
                 .andExpect(status().isBadRequest())

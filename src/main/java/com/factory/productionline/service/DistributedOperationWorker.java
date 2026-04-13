@@ -31,8 +31,9 @@ public class DistributedOperationWorker {
     private final double tauMean;
     private final double tauSigma;
     private final Random random;
-    private final Set<String> seenBatchIds;
-    private final Map<String, Double> batchStartTauByBatchId;
+    private final Set<String> seenBatchKeys;
+    private final Map<String, Double> batchStartTauByBatchKey;
+    private final Map<String, Double> machineBusyUntilByRouteRepetitionKey;
     private double machineBusyUntil;
 
     public DistributedOperationWorker(
@@ -51,8 +52,9 @@ public class DistributedOperationWorker {
         this.tauMean = tauMean;
         this.tauSigma = tauSigma;
         this.random = new Random(randomSeed);
-        this.seenBatchIds = new HashSet<>();
-        this.batchStartTauByBatchId = new HashMap<>();
+        this.seenBatchKeys = new HashSet<>();
+        this.batchStartTauByBatchKey = new HashMap<>();
+        this.machineBusyUntilByRouteRepetitionKey = new HashMap<>();
         this.machineBusyUntil = 0d;
     }
 
@@ -66,42 +68,48 @@ public class DistributedOperationWorker {
         String outputTopic = DistributedSimulationTopics.operationTopic(outgoing.routeId(), operationId, nextOperationId);
         kafkaTemplate.send(
                 outputTopic,
-                outgoing.routeId() + "-" + outgoing.batchId() + "-" + outgoing.partNumber(),
+                outgoing.routeId() + "-" + outgoing.batchId() + "-" + outgoing.repetition() + "-" + outgoing.partNumber(),
                 serialize(outgoing)
         );
         kafkaTemplate.send(
                 DistributedSimulationTopics.operationEventsTopic(outgoing.routeId()),
-                outgoing.routeId() + "-" + outgoing.batchId() + "-" + operationId + "-" + outgoing.partNumber(),
+                outgoing.routeId() + "-" + outgoing.batchId() + "-" + outgoing.repetition() + "-" + operationId + "-" + outgoing.partNumber(),
                 serialize(new DistributedOperationEvent(
                         outgoing.routeId(),
                         operationId,
                         nextOperationId,
                         outgoing.partNumber(),
                         outgoing.batchId(),
+                        outgoing.repetition(),
                         outgoing.startTau(),
                         outgoing.processingTau(),
                         outgoing.finishTau()
                 ))
         );
 
-        log.info("Operation {} processed part {} for route {} batch {}. startTau={}, finishTau={}, outputTopic={}",
+        log.info("Operation {} processed part {} for route {} batch {} repetition {}. startTau={}, finishTau={}, outputTopic={}",
                 operationId,
                 outgoing.partNumber(),
                 outgoing.routeId(),
                 outgoing.batchId(),
+                outgoing.repetition(),
                 outgoing.startTau(),
                 outgoing.finishTau(),
                 outputTopic);
     }
 
     synchronized DistributedPartMessage processMessage(DistributedPartMessage incoming) {
-        String batchId = incoming.batchId();
-        if (incoming.partNumber() == 1 && seenBatchIds.contains(batchId)) {
-            machineBusyUntil = batchStartTauByBatchId.getOrDefault(batchId, incoming.finishTau());
+        if (incoming.repetition() > 0) {
+            return processMonteCarloMessage(incoming);
+        }
+
+        String batchKey = batchKey(incoming);
+        if (incoming.partNumber() == 1 && seenBatchKeys.contains(batchKey)) {
+            machineBusyUntil = batchStartTauByBatchKey.getOrDefault(batchKey, incoming.finishTau());
         }
         if (incoming.partNumber() == 1) {
-            batchStartTauByBatchId.putIfAbsent(batchId, machineBusyUntil);
-            seenBatchIds.add(batchId);
+            batchStartTauByBatchKey.putIfAbsent(batchKey, machineBusyUntil);
+            seenBatchKeys.add(batchKey);
         }
 
         double startTau = Math.max(incoming.finishTau(), machineBusyUntil);
@@ -113,10 +121,38 @@ public class DistributedOperationWorker {
                 incoming.routeId(),
                 incoming.partNumber(),
                 incoming.batchId(),
+                incoming.repetition(),
                 startTau,
                 processingTau,
                 finishTau
         );
+    }
+
+    private DistributedPartMessage processMonteCarloMessage(DistributedPartMessage incoming) {
+        String routeRepetitionKey = routeRepetitionKey(incoming);
+        double routeMachineBusyUntil = machineBusyUntilByRouteRepetitionKey.getOrDefault(routeRepetitionKey, 0d);
+        double startTau = Math.max(incoming.finishTau(), routeMachineBusyUntil);
+        double processingTau = sampleNormalBounded();
+        double finishTau = startTau + processingTau;
+        machineBusyUntilByRouteRepetitionKey.put(routeRepetitionKey, finishTau);
+
+        return new DistributedPartMessage(
+                incoming.routeId(),
+                incoming.partNumber(),
+                incoming.batchId(),
+                incoming.repetition(),
+                startTau,
+                processingTau,
+                finishTau
+        );
+    }
+
+    private String batchKey(DistributedPartMessage incoming) {
+        return incoming.routeId() + "-" + incoming.batchId() + "-" + incoming.repetition();
+    }
+
+    private String routeRepetitionKey(DistributedPartMessage incoming) {
+        return incoming.routeId() + "-" + incoming.repetition();
     }
 
     private double sampleNormalBounded() {

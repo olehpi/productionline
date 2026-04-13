@@ -8,14 +8,17 @@ import jakarta.validation.constraints.NotEmpty;
 
 import java.util.List;
 
-public record LinearSimulationRequest(
-        @NotBlank String routeId,
-        @Min(1) int partsCount,
-        @NotBlank String batchId,
-        @DecimalMin(value = "0.0", inclusive = true) double startTau,
-        @DecimalMin(value = "0.0", inclusive = true) double finishTau,
-        @NotEmpty List<@Valid OperationInput> operations
+public record MonteCarloSimulationRequest(
+        @NotEmpty List<@Valid RouteInput> routes,
+        @Min(1) int repetitions
 ) {
+    public record RouteInput(
+            @NotBlank String routeId,
+            @NotEmpty List<@Valid OperationInput> operations,
+            @NotEmpty List<@Valid BatchInput> batches
+    ) {
+    }
+
     public record OperationInput(
             @Min(0) int id,
             @NotBlank String name,
@@ -23,5 +26,13 @@ public record LinearSimulationRequest(
             @DecimalMin(value = "0.0", inclusive = true) double tauSigma,
             Long randomSeed
     ) implements ProductionLineMapper.OperationInputView {
+    }
+
+    public record BatchInput(
+            @NotBlank String batchId,
+            @Min(1) int partsCount,
+            @DecimalMin(value = "0.0", inclusive = true) double startTau,
+            @DecimalMin(value = "0.0", inclusive = true) double finishTau
+    ) {
     }
 }

@@ -74,18 +74,67 @@ public class ProductionLineMapper {
     }
 
     public ProductionLine.LinearSimulationInput toModel(LinearSimulationRequest request) {
+        return toLinearSimulationInput(
+                request.routeId(),
+                request.partsCount(),
+                request.batchId(),
+                request.startTau(),
+                request.finishTau(),
+                request.operations()
+        );
+    }
+
+    public ProductionLine.LinearSimulationInput toModel(MonteCarloSimulationRequest.RouteInput route, MonteCarloSimulationRequest.BatchInput batch) {
+        return toLinearSimulationInput(
+                route.routeId(),
+                batch.partsCount(),
+                batch.batchId(),
+                batch.startTau(),
+                batch.finishTau(),
+                route.operations()
+        );
+    }
+
+    public ProductionLine.DistributedRouteInput toModel(DistributedWorkersApplyRequest.RouteInput request) {
         int operationsCount = (int) request.operations().stream()
                 .filter(operationInput -> !isStore(operationInput.name()))
                 .count();
 
-        return new ProductionLine.LinearSimulationInput(
+        return new ProductionLine.DistributedRouteInput(
                 request.routeId(),
-                request.partsCount(),
                 operationsCount,
-                request.batchId(),
-                request.startTau(),
-                request.finishTau(),
                 request.operations().stream()
+                        .map(operationInput -> new ProductionLine.LinearOperationInput(
+                                operationInput.id(),
+                                operationInput.name(),
+                                operationInput.tauMean(),
+                                operationInput.tauSigma(),
+                                operationInput.randomSeed()
+                        ))
+                        .toList()
+        );
+    }
+
+    private ProductionLine.LinearSimulationInput toLinearSimulationInput(
+            String routeId,
+            int partsCount,
+            String batchId,
+            double startTau,
+            double finishTau,
+            java.util.List<? extends OperationInputView> operations
+    ) {
+        int operationsCount = (int) operations.stream()
+                .filter(operationInput -> !isStore(operationInput.name()))
+                .count();
+
+        return new ProductionLine.LinearSimulationInput(
+                routeId,
+                partsCount,
+                operationsCount,
+                batchId,
+                startTau,
+                finishTau,
+                operations.stream()
                         .map(operationInput -> new ProductionLine.LinearOperationInput(
                                 operationInput.id(),
                                 operationInput.name(),
@@ -100,6 +149,14 @@ public class ProductionLineMapper {
     private boolean isStore(String name) {
         String normalized = name == null ? "" : name.trim().toLowerCase();
         return normalized.equals("startstore") || normalized.equals("finishstore");
+    }
+
+    interface OperationInputView {
+        int id();
+        String name();
+        double tauMean();
+        double tauSigma();
+        Long randomSeed();
     }
 
     public LinearSimulationResponse toResponse(DistributedBatchResult result) {
