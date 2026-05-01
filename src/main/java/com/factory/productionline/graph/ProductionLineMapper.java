@@ -28,6 +28,7 @@ public class ProductionLineMapper {
                         .map(operation -> new ProductionLine.Operation(
                                 operation.id(),
                                 operation.name(),
+                                operation.outputBufferCapacity(),
                                 operation.bunkerIds(),
                                 operation.inputIds(),
                                 operation.outputIds(),
@@ -61,6 +62,7 @@ public class ProductionLineMapper {
                         .map(operation -> new ProductionLineResponse.Operation(
                                 operation.id(),
                                 operation.name(),
+                                operation.outputBufferCapacity(),
                                 operation.bunkerIds(),
                                 operation.inputIds(),
                                 operation.outputIds(),
@@ -109,7 +111,8 @@ public class ProductionLineMapper {
                                 operationInput.name(),
                                 operationInput.tauMean(),
                                 operationInput.tauSigma(),
-                                operationInput.randomSeed()
+                                operationInput.randomSeed(),
+                                operationInput.outputBufferCapacity()
                         ))
                         .toList()
         );
@@ -140,7 +143,8 @@ public class ProductionLineMapper {
                                 operationInput.name(),
                                 operationInput.tauMean(),
                                 operationInput.tauSigma(),
-                                operationInput.randomSeed()
+                                operationInput.randomSeed(),
+                                operationInput.outputBufferCapacity()
                         ))
                         .toList()
         );
@@ -157,6 +161,7 @@ public class ProductionLineMapper {
         double tauMean();
         double tauSigma();
         Long randomSeed();
+        Integer outputBufferCapacity();
     }
 
     public LinearSimulationResponse toResponse(DistributedBatchResult result) {

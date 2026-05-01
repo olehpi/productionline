@@ -3,6 +3,7 @@ package com.factory.productionline.graph;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Positive;
 
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,7 @@ public record ProductionLineRequest(
     public record Operation(
             @NotBlank String id,
             @NotBlank String name,
+            @Positive Integer outputBufferCapacity,
             @NotEmpty List<@NotBlank String> bunkerIds,
             List<Integer> inputIds,
             List<Integer> outputIds,

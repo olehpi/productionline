@@ -43,7 +43,7 @@ public class DistributedComposeGenerator {
 
         StringBuilder compose = new StringBuilder("services:\n");
         for (ProductionLine.LinearOperationInput worker : workerOperations) {
-            appendWorkerService(compose, worker, input.routeId());
+            appendWorkerService(compose, worker, input.routeId(), input.operationsCount());
         }
 
         appendFinishStoreService(compose, input.operationsCount(), input.routeId());
@@ -104,9 +104,17 @@ public class DistributedComposeGenerator {
         }
     }
 
-    private void appendWorkerService(StringBuilder compose, ProductionLine.LinearOperationInput operation, String routeId) {
+    private void appendWorkerService(
+            StringBuilder compose,
+            ProductionLine.LinearOperationInput operation,
+            String routeId,
+            int operationsCount
+    ) {
         int operationId = operation.id();
         String inboundTopic = DistributedSimulationTopics.operationTopic(routeId, operationId - 1, operationId);
+        String downstreamGroupId = operationId == operationsCount
+                ? DistributedSimulationTopics.finishStoreGroupId(routeId)
+                : DistributedSimulationTopics.workerGroupId(routeId, operationId + 1);
         int containerDebugPort = CONTAINER_DEBUG_PORT_BASE + operationId;
         int hostDebugPort = hostDebugPort(routeId, operationId);
 
@@ -127,12 +135,19 @@ public class DistributedComposeGenerator {
                 .append("      - SIMULATION_DISTRIBUTED_WORKER_ENABLED=true\n")
                 .append("      - SIMULATION_DISTRIBUTED_WORKER_GROUP_ID=")
                 .append(DistributedSimulationTopics.workerGroupId(routeId, operationId)).append("\n")
+                .append("      - SIMULATION_DISTRIBUTED_WORKER_DOWNSTREAM_GROUP_ID=")
+                .append(downstreamGroupId).append("\n")
                 .append("      - SIMULATION_DISTRIBUTED_WORKER_INBOUND_TOPIC=").append(inboundTopic).append("\n")
                 .append("      - SIMULATION_DISTRIBUTED_WORKER_OPERATION_ID=").append(operationId).append("\n")
                 .append("      - SIMULATION_DISTRIBUTED_WORKER_NEXT_OPERATION_ID=").append(operationId + 1).append("\n")
                 .append("      - SIMULATION_DISTRIBUTED_WORKER_TAU_MEAN=").append(operation.tauMean()).append("\n")
                 .append("      - SIMULATION_DISTRIBUTED_WORKER_TAU_SIGMA=").append(operation.tauSigma()).append("\n")
                 .append("      - SIMULATION_DISTRIBUTED_WORKER_RANDOM_SEED=").append(operation.randomSeed() == null ? 0 : operation.randomSeed()).append("\n");
+        if (operation.outputBufferCapacity() != null) {
+            compose.append("      - SIMULATION_DISTRIBUTED_WORKER_OUTPUT_BUFFER_CAPACITY=")
+                    .append(operation.outputBufferCapacity())
+                    .append("\n");
+        }
     }
 
     private void appendFinishStoreService(StringBuilder compose, int operationsCount, String routeId) {

@@ -5,6 +5,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Positive;
 
 import java.util.List;
 
@@ -24,7 +25,8 @@ public record MonteCarloSimulationRequest(
             @NotBlank String name,
             @DecimalMin(value = "0.0", inclusive = true) double tauMean,
             @DecimalMin(value = "0.0", inclusive = true) double tauSigma,
-            Long randomSeed
+            Long randomSeed,
+            @Positive Integer outputBufferCapacity
     ) implements ProductionLineMapper.OperationInputView {
     }
 

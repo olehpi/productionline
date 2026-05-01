@@ -22,6 +22,7 @@ public record ProductionLine(
     public record Operation(
             @NotBlank String id,
             @NotBlank String name,
+            Integer outputBufferCapacity,
             @NotEmpty List<@NotBlank String> bunkerIds,
             List<Integer> inputIds,
             List<Integer> outputIds,
@@ -69,8 +70,12 @@ public record ProductionLine(
             String name,
             double tauMean,
             double tauSigma,
-            Long randomSeed
+            Long randomSeed,
+            Integer outputBufferCapacity
     ) {
+        public LinearOperationInput(int id, String name, double tauMean, double tauSigma, Long randomSeed) {
+            this(id, name, tauMean, tauSigma, randomSeed, null);
+        }
     }
 
     public record DistributedRouteInput(

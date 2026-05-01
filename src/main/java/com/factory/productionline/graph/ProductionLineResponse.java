@@ -18,6 +18,7 @@ public record ProductionLineResponse(
     public record Operation(
             String id,
             String name,
+            Integer outputBufferCapacity,
             List<String> bunkerIds,
             List<Integer> inputIds,
             List<Integer> outputIds,

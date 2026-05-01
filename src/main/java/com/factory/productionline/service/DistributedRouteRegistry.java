@@ -67,6 +67,16 @@ public class DistributedRouteRegistry {
         }
     }
 
+    public Map<Integer, Integer> getOutputBufferCapacities(String routeId) {
+        RegisteredRoute route = getRegisteredRoute(routeId);
+        return route.operations().stream()
+                .filter(operation -> operation.outputBufferCapacity() != null)
+                .collect(java.util.stream.Collectors.toMap(
+                        RegisteredOperation::id,
+                        RegisteredOperation::outputBufferCapacity
+                ));
+    }
+
     public ProductionLine.LinearSimulationInput createLinearSimulationInput(
             String routeId,
             int partsCount,
@@ -88,7 +98,8 @@ public class DistributedRouteRegistry {
                                 operation.name(),
                                 operation.tauMean(),
                                 operation.tauSigma(),
-                                operation.randomSeed()
+                                operation.randomSeed(),
+                                operation.outputBufferCapacity()
                         ))
                         .toList()
         );
@@ -115,7 +126,8 @@ public class DistributedRouteRegistry {
                                     operation.name(),
                                     operation.tauMean(),
                                     operation.tauSigma(),
-                                    operation.randomSeed()
+                                    operation.randomSeed(),
+                                    operation.outputBufferCapacity()
                             ))
                             .toList()
             );
@@ -130,7 +142,8 @@ public class DistributedRouteRegistry {
                                     operation.name(),
                                     operation.tauMean(),
                                     operation.tauSigma(),
-                                    operation.randomSeed()
+                                    operation.randomSeed(),
+                                    operation.outputBufferCapacity()
                             ))
                             .toList()
             );
@@ -144,7 +157,8 @@ public class DistributedRouteRegistry {
                             operation.name(),
                             operation.tauMean(),
                             operation.tauSigma(),
-                            operation.randomSeed()
+                            operation.randomSeed(),
+                            operation.outputBufferCapacity()
                     ))
                     .toList());
         }
@@ -157,7 +171,8 @@ public class DistributedRouteRegistry {
                             operation.name(),
                             operation.tauMean(),
                             operation.tauSigma(),
-                            operation.randomSeed()
+                            operation.randomSeed(),
+                            operation.outputBufferCapacity()
                     ))
                     .toList());
         }
@@ -168,7 +183,8 @@ public class DistributedRouteRegistry {
             String name,
             double tauMean,
             double tauSigma,
-            Long randomSeed
+            Long randomSeed,
+            Integer outputBufferCapacity
     ) {
     }
 }

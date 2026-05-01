@@ -4,19 +4,28 @@ import com.factory.productionline.model.DistributedOperationEvent;
 import com.factory.productionline.model.DistributedPartMessage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.ListOffsetsResult.ListOffsetsResultInfo;
+import org.apache.kafka.clients.admin.OffsetSpec;
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 @Component
 @ConditionalOnProperty(name = "simulation.distributed.worker.enabled", havingValue = "true")
@@ -25,9 +34,13 @@ public class DistributedOperationWorker {
     private static final Logger log = LoggerFactory.getLogger(DistributedOperationWorker.class);
 
     private final KafkaTemplate<String, String> kafkaTemplate;
+    private final KafkaAdmin kafkaAdmin;
     private final ObjectMapper objectMapper;
     private final int operationId;
     private final int nextOperationId;
+    private final int outputBufferCapacity;
+    private final String downstreamGroupId;
+    private final long outputBufferPollIntervalMillis;
     private final double tauMean;
     private final double tauSigma;
     private final Random random;
@@ -36,19 +49,28 @@ public class DistributedOperationWorker {
     private final Map<String, Double> machineBusyUntilByRouteRepetitionKey;
     private double machineBusyUntil;
 
+    @Autowired
     public DistributedOperationWorker(
             KafkaTemplate<String, String> kafkaTemplate,
+            KafkaAdmin kafkaAdmin,
             ObjectMapper objectMapper,
             @Value("${simulation.distributed.worker.operation-id}") int operationId,
             @Value("${simulation.distributed.worker.next-operation-id}") int nextOperationId,
+            @Value("${simulation.distributed.worker.output-buffer-capacity:-1}") int outputBufferCapacity,
+            @Value("${simulation.distributed.worker.downstream-group-id:}") String downstreamGroupId,
+            @Value("${simulation.distributed.worker.output-buffer-poll-interval-ms:100}") long outputBufferPollIntervalMillis,
             @Value("${simulation.distributed.worker.tau-mean}") double tauMean,
             @Value("${simulation.distributed.worker.tau-sigma:0}") double tauSigma,
             @Value("${simulation.distributed.worker.random-seed:0}") long randomSeed
     ) {
         this.kafkaTemplate = kafkaTemplate;
+        this.kafkaAdmin = kafkaAdmin;
         this.objectMapper = objectMapper;
         this.operationId = operationId;
         this.nextOperationId = nextOperationId;
+        this.outputBufferCapacity = outputBufferCapacity;
+        this.downstreamGroupId = downstreamGroupId;
+        this.outputBufferPollIntervalMillis = outputBufferPollIntervalMillis;
         this.tauMean = tauMean;
         this.tauSigma = tauSigma;
         this.random = new Random(randomSeed);
@@ -56,6 +78,22 @@ public class DistributedOperationWorker {
         this.batchStartTauByBatchKey = new HashMap<>();
         this.machineBusyUntilByRouteRepetitionKey = new HashMap<>();
         this.machineBusyUntil = 0d;
+    }
+
+    DistributedOperationWorker(
+            KafkaTemplate<String, String> kafkaTemplate,
+            ObjectMapper objectMapper,
+            int operationId,
+            int nextOperationId,
+            double tauMean,
+            double tauSigma,
+            long randomSeed
+    ) {
+        this(kafkaTemplate, null, objectMapper, operationId, nextOperationId, -1, "", 100L, tauMean, tauSigma, randomSeed);
+    }
+
+    int outputBufferCapacity() {
+        return outputBufferCapacity;
     }
 
     @KafkaListener(
@@ -66,6 +104,7 @@ public class DistributedOperationWorker {
         DistributedPartMessage incoming = deserialize(payload);
         DistributedPartMessage outgoing = processMessage(incoming);
         String outputTopic = DistributedSimulationTopics.operationTopic(outgoing.routeId(), operationId, nextOperationId);
+        awaitOutputBufferSpace(outputTopic);
         kafkaTemplate.send(
                 outputTopic,
                 outgoing.routeId() + "-" + outgoing.batchId() + "-" + outgoing.repetition() + "-" + outgoing.partNumber(),
@@ -175,6 +214,73 @@ public class DistributedOperationWorker {
             return objectMapper.writeValueAsString(message);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Failed to serialize distributed part message", exception);
+        }
+    }
+
+    private void awaitOutputBufferSpace(String outputTopic) {
+        if (outputBufferCapacity <= 0) {
+            return;
+        }
+        if (downstreamGroupId == null || downstreamGroupId.isBlank()) {
+            throw new IllegalStateException("downstreamGroupId is required when outputBufferCapacity is limited");
+        }
+        if (kafkaAdmin == null) {
+            throw new IllegalStateException("KafkaAdmin is required when outputBufferCapacity is limited");
+        }
+
+        try (AdminClient adminClient = AdminClient.create(kafkaAdmin.getConfigurationProperties())) {
+            while (outputBufferLag(adminClient, outputTopic) >= outputBufferCapacity) {
+                sleep(outputBufferPollIntervalMillis);
+            }
+        }
+    }
+
+    private long outputBufferLag(AdminClient adminClient, String outputTopic) {
+        try {
+            Collection<TopicPartition> partitions = adminClient.describeTopics(Set.of(outputTopic))
+                    .allTopicNames()
+                    .get()
+                    .get(outputTopic)
+                    .partitions()
+                    .stream()
+                    .map(partition -> new TopicPartition(outputTopic, partition.partition()))
+                    .toList();
+
+            Map<TopicPartition, OffsetAndMetadata> committedOffsets = adminClient
+                    .listConsumerGroupOffsets(downstreamGroupId)
+                    .partitionsToOffsetAndMetadata()
+                    .get();
+            Map<TopicPartition, OffsetSpec> latestOffsetSpecs = new HashMap<>();
+            for (TopicPartition partition : partitions) {
+                latestOffsetSpecs.put(partition, OffsetSpec.latest());
+            }
+            Map<TopicPartition, ListOffsetsResultInfo> latestOffsets = adminClient
+                    .listOffsets(latestOffsetSpecs)
+                    .all()
+                    .get();
+
+            long lag = 0L;
+            for (TopicPartition partition : partitions) {
+                long endOffset = latestOffsets.get(partition).offset();
+                OffsetAndMetadata committedOffset = committedOffsets.get(partition);
+                long consumedOffset = committedOffset == null ? 0L : committedOffset.offset();
+                lag += Math.max(0L, endOffset - consumedOffset);
+            }
+            return lag;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while checking output buffer lag", exception);
+        } catch (ExecutionException exception) {
+            throw new IllegalStateException("Failed to check output buffer lag for topic " + outputTopic, exception);
+        }
+    }
+
+    private void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for output buffer space", exception);
         }
     }
 }
