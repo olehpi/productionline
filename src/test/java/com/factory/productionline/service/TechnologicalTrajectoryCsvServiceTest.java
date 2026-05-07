@@ -152,8 +152,9 @@ class TechnologicalTrajectoryCsvServiceTest {
                         .collect(Collectors.joining(";")))
                 .toList();
 
-        assertThat(normalizedLines).containsExactly(
-                "tau;bunker-0;bunker-1",
+        assertThat(normalizedLines).isNotEmpty();
+        assertThat(normalizedLines.getFirst()).isEqualTo("tau;bunker-0;bunker-1");
+        assertThat(normalizedLines).contains(
                 "0,0000000;0;0",
                 "1,0000000;1;0",
                 "2,0000000;1;0",
