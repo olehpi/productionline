@@ -120,4 +120,38 @@ class TechnologicalTrajectoryCsvServiceTest {
                 "          2;11,0000000;21,0000000;31,0000000"
         );
     }
+
+    @Test
+    void toRouteBunkersCsvBuildsChangingBunkerLoadThroughTime() {
+        DistributedBatchResult result = new DistributedBatchResult(
+                31.0,
+                List.of(),
+                List.of(
+                        new DistributedBatchResult.KafkaTransferMessage(0, 1, 1, "batch-42", 0, 0.0, 0.0, 0.0),
+                        new DistributedBatchResult.KafkaTransferMessage(0, 1, 2, "batch-42", 0, 0.0, 0.0, 0.0),
+                        new DistributedBatchResult.KafkaTransferMessage(0, 1, 3, "batch-42", 0, 0.0, 0.0, 0.0),
+                        new DistributedBatchResult.KafkaTransferMessage(1, 2, 1, "batch-42", 0, 0.0, 1.0, 1.0),
+                        new DistributedBatchResult.KafkaTransferMessage(1, 2, 2, "batch-42", 0, 1.0, 1.0, 2.0),
+                        new DistributedBatchResult.KafkaTransferMessage(1, 2, 3, "batch-42", 0, 2.0, 1.0, 3.0),
+                        new DistributedBatchResult.KafkaTransferMessage(2, 3, 1, "batch-42", 0, 1.0, 10.0, 11.0),
+                        new DistributedBatchResult.KafkaTransferMessage(2, 3, 2, "batch-42", 0, 11.0, 10.0, 21.0),
+                        new DistributedBatchResult.KafkaTransferMessage(2, 3, 3, "batch-42", 0, 21.0, 10.0, 31.0)
+                )
+        );
+
+        String csv = service.toRouteBunkersCsv(
+                "route-42",
+                List.of(new TechnologicalTrajectoryCsvService.BatchTrajectory("batch-42", 3, result)),
+                Map.of(1, 1)
+        );
+
+        assertThat(csv.lines().toList()).containsExactly(
+                "tau       ;bunker-0;bunker-1",
+                " 0,0000000;       0;       0",
+                " 1,0000000;       1;       0",
+                " 2,0000000;       1;       0",
+                "11,0000000;       0;       1",
+                "21,0000000;       0;       1"
+        );
+    }
 }
