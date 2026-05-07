@@ -185,7 +185,7 @@ public class SimulationGraphController {
                 for (MonteCarloSimulationRequest.RouteInput route : request.routes()) {
                     distributedRouteRegistry.registerRoute(new ProductionLine.DistributedRouteInput(
                             route.routeId(),
-                            route.operations().size(),
+                            nonStoreOperationsCount(route.operations()),
                             route.operations().stream()
                                     .map(operation -> new ProductionLine.LinearOperationInput(
                                             operation.id(),
@@ -317,5 +317,14 @@ public class SimulationGraphController {
             return "route_bunkers" + sanitized.substring("route".length()) + ".csv";
         }
         return sanitized + "_bunkers.csv";
+    }
+
+    private int nonStoreOperationsCount(List<MonteCarloSimulationRequest.OperationInput> operations) {
+        return (int) operations.stream()
+                .filter(operation -> {
+                    String normalized = operation.name() == null ? "" : operation.name().trim().toLowerCase();
+                    return !normalized.equals("startstore") && !normalized.equals("finishstore");
+                })
+                .count();
     }
 }
