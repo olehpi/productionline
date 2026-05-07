@@ -33,6 +33,13 @@ class DockerComposeDistributedWorkerOrchestrationServiceTest {
     }
 
     @Test
+    void recognizesKafkaHealthcheckComposeFailuresAsTransient() {
+        assertTrue(service.isTransientDockerStartupFailure(
+                "dependency failed to start: container productionline-kafka is unhealthy"
+        ));
+    }
+
+    @Test
     void ignoresNonTransientDockerFailures() {
         assertFalse(service.isTransientDockerStartupFailure(
                 "Failed to start operation workers with docker compose. Output: Bind for 0.0.0.0:5105 failed: port is already allocated"

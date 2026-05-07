@@ -13,6 +13,9 @@ import com.factory.productionline.graph.MonteCarloSimulationResponse;
 import com.factory.productionline.graph.ProductionLineMapper;
 import com.factory.productionline.graph.ProductionLineRequest;
 import com.factory.productionline.graph.ProductionLineResponse;
+import com.factory.productionline.service.MonteCarloResultArchiveService;
+import com.factory.productionline.model.ProductionLine;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.factory.productionline.service.DistributedComposeGenerator;
 import com.factory.productionline.service.DistributedMonteCarloSimulationService;
 import com.factory.productionline.service.DistributedRouteRegistry;
@@ -38,6 +41,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -54,6 +58,8 @@ public class SimulationGraphController {
     private final DistributedComposeGenerator distributedComposeGenerator;
     private final DistributedWorkerOrchestrationService distributedWorkerOrchestrationService;
     private final TechnologicalTrajectoryCsvService technologicalTrajectoryCsvService;
+    private final MonteCarloResultArchiveService monteCarloResultArchiveService;
+    private final ObjectMapper objectMapper;
 
     public SimulationGraphController(
             SimulationGraphService simulationGraphService,
@@ -64,7 +70,9 @@ public class SimulationGraphController {
             DistributedTelemetryQueryService distributedTelemetryQueryService,
             DistributedComposeGenerator distributedComposeGenerator,
             DistributedWorkerOrchestrationService distributedWorkerOrchestrationService,
-            TechnologicalTrajectoryCsvService technologicalTrajectoryCsvService
+            TechnologicalTrajectoryCsvService technologicalTrajectoryCsvService,
+            MonteCarloResultArchiveService monteCarloResultArchiveService,
+            ObjectMapper objectMapper
     ) {
         this.simulationGraphService = simulationGraphService;
         this.productionLineMapper = productionLineMapper;
@@ -75,6 +83,8 @@ public class SimulationGraphController {
         this.distributedComposeGenerator = distributedComposeGenerator;
         this.distributedWorkerOrchestrationService = distributedWorkerOrchestrationService;
         this.technologicalTrajectoryCsvService = technologicalTrajectoryCsvService;
+        this.monteCarloResultArchiveService = monteCarloResultArchiveService;
+        this.objectMapper = objectMapper;
     }
 
     @PostMapping
@@ -177,14 +187,28 @@ public class SimulationGraphController {
     @PostMapping(value = "/linear/distributed/trajectories/zip", produces = "application/zip")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public ResponseEntity<byte[]> startDistributedLinearSimulationAndReturnTrajectoriesZip(
-            @Valid @RequestBody DistributedStartRequest request
+            @Valid @RequestBody MonteCarloSimulationRequest request
     ) {
         try {
             ByteArrayOutputStream output = new ByteArrayOutputStream();
             try (ZipOutputStream zip = new ZipOutputStream(output, StandardCharsets.UTF_8)) {
-                for (DistributedStartRequest.RouteInput route : request.routes()) {
+                for (MonteCarloSimulationRequest.RouteInput route : request.routes()) {
+                    distributedRouteRegistry.registerRoute(new ProductionLine.DistributedRouteInput(
+                            route.routeId(),
+                            nonStoreOperationsCount(route.operations()),
+                            route.operations().stream()
+                                    .map(operation -> new ProductionLine.LinearOperationInput(
+                                            operation.id(),
+                                            operation.name(),
+                                            operation.tauMean(),
+                                            operation.tauSigma(),
+                                            operation.randomSeed(),
+                                            operation.outputBufferCapacity()
+                                    ))
+                                    .toList()
+                    ));
                     var trajectories = new ArrayList<TechnologicalTrajectoryCsvService.BatchTrajectory>();
-                    for (DistributedStartRequest.BatchInput batch : route.batches()) {
+                    for (MonteCarloSimulationRequest.BatchInput batch : route.batches()) {
                         var input = distributedRouteRegistry.createLinearSimulationInput(
                                 route.routeId(),
                                 batch.partsCount(),
@@ -218,6 +242,15 @@ public class SimulationGraphController {
                             )
                             .getBytes(StandardCharsets.UTF_8));
                     zip.closeEntry();
+
+                    zip.putNextEntry(new ZipEntry(routeBunkersCsvFileName(route.routeId())));
+                    zip.write(technologicalTrajectoryCsvService.toRouteBunkersCsv(
+                                    route.routeId(),
+                                    trajectories,
+                                    outputBufferCapacities
+                            )
+                            .getBytes(StandardCharsets.UTF_8));
+                    zip.closeEntry();
                 }
             }
 
@@ -233,18 +266,35 @@ public class SimulationGraphController {
     @PostMapping("/linear/distributed/monte-carlo")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public MonteCarloSimulationResponse startDistributedMonteCarloSimulation(@Valid @RequestBody MonteCarloSimulationRequest request) {
-        return new MonteCarloSimulationResponse(
-                request.repetitions(),
-                request.routes().stream()
-                        .map(route -> distributedMonteCarloSimulationService.runRoute(
-                                route.routeId(),
-                                route.batches().stream()
-                                        .map(batch -> productionLineMapper.toModel(route, batch))
-                                        .toList(),
-                                request.repetitions()
-                        ))
-                        .toList()
-        );
+        return runDistributedMonteCarlo(request);
+    }
+
+    @PostMapping(value = "/linear/distributed/monte-carlo/zip", produces = "application/zip")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public ResponseEntity<byte[]> startDistributedMonteCarloSimulationAndReturnZip(
+            @Valid @RequestBody MonteCarloSimulationRequest request
+    ) {
+        MonteCarloSimulationResponse response = runDistributedMonteCarlo(request);
+        try {
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            try (ZipOutputStream zip = new ZipOutputStream(output, StandardCharsets.UTF_8)) {
+                zip.putNextEntry(new ZipEntry("finish-times.csv"));
+                zip.write(monteCarloResultArchiveService.toFinishTimesCsv(response).getBytes(StandardCharsets.UTF_8));
+                zip.closeEntry();
+
+                zip.putNextEntry(new ZipEntry("monte-carlo-summary.json"));
+                zip.write(objectMapper.writerWithDefaultPrettyPrinter()
+                        .writeValueAsBytes(monteCarloResultArchiveService.toSummary(response)));
+                zip.closeEntry();
+            }
+
+            return ResponseEntity.accepted()
+                    .contentType(MediaType.parseMediaType("application/zip"))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"monte-carlo-results.zip\"")
+                    .body(output.toByteArray());
+        } catch (IOException exception) {
+            throw new IllegalStateException("Failed to build Monte Carlo results ZIP", exception);
+        }
     }
 
     @GetMapping("/linear/distributed/telemetry/{routeId}")
@@ -276,6 +326,21 @@ public class SimulationGraphController {
         return "docker-compose.operations-" + routeId.replaceAll("[^A-Za-z0-9._-]", "_") + ".yml";
     }
 
+    private MonteCarloSimulationResponse runDistributedMonteCarlo(MonteCarloSimulationRequest request) {
+        return new MonteCarloSimulationResponse(
+                request.repetitions(),
+                request.routes().stream()
+                        .map(route -> distributedMonteCarloSimulationService.runRoute(
+                                route.routeId(),
+                                route.batches().stream()
+                                        .map(batch -> productionLineMapper.toModel(route, batch))
+                                        .toList(),
+                                request.repetitions()
+                        ))
+                        .toList()
+        );
+    }
+
     private String routeCsvFileName(String routeId) {
         return routeId.replaceAll("[^A-Za-z0-9._-]", "_") + ".csv";
     }
@@ -287,5 +352,21 @@ public class SimulationGraphController {
         }
         return sanitized + "_full.csv";
     }
-}
 
+    private String routeBunkersCsvFileName(String routeId) {
+        String sanitized = routeId.replaceAll("[^A-Za-z0-9._-]", "_");
+        if (sanitized.startsWith("route")) {
+            return "route_bunkers" + sanitized.substring("route".length()) + ".csv";
+        }
+        return sanitized + "_bunkers.csv";
+    }
+
+    private int nonStoreOperationsCount(List<MonteCarloSimulationRequest.OperationInput> operations) {
+        return (int) operations.stream()
+                .filter(operation -> {
+                    String normalized = operation.name() == null ? "" : operation.name().trim().toLowerCase();
+                    return !normalized.equals("startstore") && !normalized.equals("finishstore");
+                })
+                .count();
+    }
+}

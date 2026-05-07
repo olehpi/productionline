@@ -4,10 +4,13 @@ import com.factory.productionline.model.DistributedBatchResult;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class TechnologicalTrajectoryCsvService {
@@ -165,6 +168,56 @@ public class TechnologicalTrajectoryCsvService {
         }
 
         return toAlignedCsv(rows);
+    }
+
+    public String toRouteBunkersCsv(
+            String routeId,
+            List<BatchTrajectory> batches,
+            Map<Integer, Integer> outputBufferCapacities
+    ) {
+        RouteTrajectory trajectory = capacityAwareTrajectory(batches, outputBufferCapacities);
+        if (trajectory.maxOperationId() <= 0) {
+            return "tau\n";
+        }
+
+        List<List<Cell>> rows = new ArrayList<>();
+        List<Cell> header = new ArrayList<>();
+        header.add(Cell.text("tau"));
+        for (int operationId = 0; operationId < trajectory.maxOperationId(); operationId++) {
+            header.add(Cell.text("bunker-" + operationId));
+        }
+        rows.add(header);
+
+        Set<Double> tauPoints = new LinkedHashSet<>();
+        for (int columnIndex = 0; columnIndex < trajectory.columns().size(); columnIndex++) {
+            for (int operationId = 0; operationId < trajectory.maxOperationId(); operationId++) {
+                tauPoints.add(trajectory.transferTauByColumnAndOperation()[columnIndex][operationId]);
+                tauPoints.add(trajectory.startTauByColumnAndOperation()[columnIndex][operationId + 1]);
+            }
+        }
+
+        tauPoints.stream()
+                .sorted(Comparator.naturalOrder())
+                .forEach(tau -> rows.add(bunkerLoadRow(tau, trajectory)));
+
+        return toAlignedCsv(rows);
+    }
+
+    private List<Cell> bunkerLoadRow(double tau, RouteTrajectory trajectory) {
+        List<Cell> row = new ArrayList<>();
+        row.add(Cell.number(formatTau(tau)));
+        for (int operationId = 0; operationId < trajectory.maxOperationId(); operationId++) {
+            int load = 0;
+            for (int columnIndex = 0; columnIndex < trajectory.columns().size(); columnIndex++) {
+                double transferredFromOperationTau = trajectory.transferTauByColumnAndOperation()[columnIndex][operationId];
+                double startedNextOperationTau = trajectory.startTauByColumnAndOperation()[columnIndex][operationId + 1];
+                if (transferredFromOperationTau <= tau && tau < startedNextOperationTau) {
+                    load++;
+                }
+            }
+            row.add(Cell.number(String.valueOf(load)));
+        }
+        return row;
     }
 
     private List<Cell> routeHeader(List<PartColumn> columns) {

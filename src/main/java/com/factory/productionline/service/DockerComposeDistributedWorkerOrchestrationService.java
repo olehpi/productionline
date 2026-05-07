@@ -137,16 +137,28 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
     private void waitForKafkaConsumerGroups(ProductionLine.DistributedRouteInput input) {
         List<String> expectedGroups = expectedConsumerGroups(input);
         Instant deadline = Instant.now().plus(Duration.ofMillis(readyTimeoutMillis));
+        Exception lastFailure = null;
 
         try (AdminClient adminClient = AdminClient.create(kafkaAdmin.getConfigurationProperties())) {
             while (Instant.now().isBefore(deadline)) {
-                if (allConsumerGroupsReady(adminClient, expectedGroups)) {
-                    return;
+                try {
+                    if (allConsumerGroupsReady(adminClient, expectedGroups)) {
+                        return;
+                    }
+                } catch (ExecutionException exception) {
+                    lastFailure = exception;
                 }
                 sleep(readyPollIntervalMillis);
             }
         } catch (Exception exception) {
             throw new IllegalStateException("Failed while waiting for Kafka consumer groups readiness", exception);
+        }
+
+        if (lastFailure != null) {
+            throw new IllegalStateException(
+                    "Timed out waiting for Kafka consumer groups readiness: " + String.join(", ", expectedGroups),
+                    lastFailure
+            );
         }
 
         throw new IllegalStateException(
@@ -228,7 +240,9 @@ public class DockerComposeDistributedWorkerOrchestrationService implements Distr
         String normalized = message.toLowerCase(Locale.ROOT);
         return normalized.contains("failed to set up container networking")
                 || normalized.contains("failed to add interface")
-                || normalized.contains("bridge port not forwarding");
+                || normalized.contains("bridge port not forwarding")
+                || normalized.contains("container productionline-kafka is unhealthy")
+                || normalized.contains("dependency failed to start: container productionline-kafka is unhealthy");
     }
 
     private void sleep(long millis) {
