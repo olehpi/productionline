@@ -13,6 +13,7 @@ import com.factory.productionline.graph.MonteCarloSimulationResponse;
 import com.factory.productionline.graph.ProductionLineMapper;
 import com.factory.productionline.graph.ProductionLineRequest;
 import com.factory.productionline.graph.ProductionLineResponse;
+import com.factory.productionline.model.ProductionLine;
 import com.factory.productionline.service.DistributedComposeGenerator;
 import com.factory.productionline.service.DistributedMonteCarloSimulationService;
 import com.factory.productionline.service.DistributedRouteRegistry;
@@ -38,6 +39,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -177,14 +179,28 @@ public class SimulationGraphController {
     @PostMapping(value = "/linear/distributed/trajectories/zip", produces = "application/zip")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public ResponseEntity<byte[]> startDistributedLinearSimulationAndReturnTrajectoriesZip(
-            @Valid @RequestBody DistributedStartRequest request
+            @Valid @RequestBody MonteCarloSimulationRequest request
     ) {
         try {
             ByteArrayOutputStream output = new ByteArrayOutputStream();
             try (ZipOutputStream zip = new ZipOutputStream(output, StandardCharsets.UTF_8)) {
-                for (DistributedStartRequest.RouteInput route : request.routes()) {
+                for (MonteCarloSimulationRequest.RouteInput route : request.routes()) {
+                    distributedRouteRegistry.registerRoute(new ProductionLine.DistributedRouteInput(
+                            route.routeId(),
+                            nonStoreOperationsCount(route.operations()),
+                            route.operations().stream()
+                                    .map(operation -> new ProductionLine.LinearOperationInput(
+                                            operation.id(),
+                                            operation.name(),
+                                            operation.tauMean(),
+                                            operation.tauSigma(),
+                                            operation.randomSeed(),
+                                            operation.outputBufferCapacity()
+                                    ))
+                                    .toList()
+                    ));
                     var trajectories = new ArrayList<TechnologicalTrajectoryCsvService.BatchTrajectory>();
-                    for (DistributedStartRequest.BatchInput batch : route.batches()) {
+                    for (MonteCarloSimulationRequest.BatchInput batch : route.batches()) {
                         var input = distributedRouteRegistry.createLinearSimulationInput(
                                 route.routeId(),
                                 batch.partsCount(),
@@ -212,6 +228,15 @@ public class SimulationGraphController {
 
                     zip.putNextEntry(new ZipEntry(routeFullCsvFileName(route.routeId())));
                     zip.write(technologicalTrajectoryCsvService.toRouteFullCsv(
+                                    route.routeId(),
+                                    trajectories,
+                                    outputBufferCapacities
+                            )
+                            .getBytes(StandardCharsets.UTF_8));
+                    zip.closeEntry();
+
+                    zip.putNextEntry(new ZipEntry(routeBunkersCsvFileName(route.routeId())));
+                    zip.write(technologicalTrajectoryCsvService.toRouteBunkersCsv(
                                     route.routeId(),
                                     trajectories,
                                     outputBufferCapacities
@@ -287,5 +312,21 @@ public class SimulationGraphController {
         }
         return sanitized + "_full.csv";
     }
-}
 
+    private String routeBunkersCsvFileName(String routeId) {
+        String sanitized = routeId.replaceAll("[^A-Za-z0-9._-]", "_");
+        if (sanitized.startsWith("route")) {
+            return "route_bunkers" + sanitized.substring("route".length()) + ".csv";
+        }
+        return sanitized + "_bunkers.csv";
+    }
+
+    private int nonStoreOperationsCount(List<MonteCarloSimulationRequest.OperationInput> operations) {
+        return (int) operations.stream()
+                .filter(operation -> {
+                    String normalized = operation.name() == null ? "" : operation.name().trim().toLowerCase();
+                    return !normalized.equals("startstore") && !normalized.equals("finishstore");
+                })
+                .count();
+    }
+}
