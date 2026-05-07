@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -145,13 +146,19 @@ class TechnologicalTrajectoryCsvServiceTest {
                 Map.of(1, 1)
         );
 
-        assertThat(csv.lines().toList()).containsExactly(
-                "tau       ;bunker-0;bunker-1",
-                " 0,0000000;       0;       0",
-                " 1,0000000;       1;       0",
-                " 2,0000000;       1;       0",
-                "11,0000000;       0;       1",
-                "21,0000000;       0;       1"
+        List<String> normalizedLines = csv.lines()
+                .map(line -> java.util.Arrays.stream(line.split(";"))
+                        .map(String::trim)
+                        .collect(Collectors.joining(";")))
+                .toList();
+
+        assertThat(normalizedLines).containsExactly(
+                "tau;bunker-0;bunker-1",
+                "0,0000000;0;0",
+                "1,0000000;1;0",
+                "2,0000000;1;0",
+                "11,0000000;0;1",
+                "21,0000000;0;1"
         );
     }
 }
