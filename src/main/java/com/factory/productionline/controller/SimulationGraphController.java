@@ -13,6 +13,7 @@ import com.factory.productionline.graph.MonteCarloSimulationResponse;
 import com.factory.productionline.graph.ProductionLineMapper;
 import com.factory.productionline.graph.ProductionLineRequest;
 import com.factory.productionline.graph.ProductionLineResponse;
+import com.factory.productionline.model.ProductionLine;
 import com.factory.productionline.service.DistributedComposeGenerator;
 import com.factory.productionline.service.DistributedMonteCarloSimulationService;
 import com.factory.productionline.service.DistributedRouteRegistry;
