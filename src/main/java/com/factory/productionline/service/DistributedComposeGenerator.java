@@ -73,12 +73,12 @@ public class DistributedComposeGenerator {
             throw new IllegalArgumentException("Expected exactly one finishStore operation");
         }
 
-        if (startStores.get(0).id() != 0) {
+        if (startStores.getFirst().id() != 0) {
             throw new IllegalArgumentException("startStore must have id=0");
         }
 
         int expectedFinishId = input.operationsCount() + 1;
-        if (finishStores.get(0).id() != expectedFinishId) {
+        if (finishStores.getFirst().id() != expectedFinishId) {
             throw new IllegalArgumentException(
                     "finishStore must have id=" + expectedFinishId + " when operationsCount=" + input.operationsCount()
             );
@@ -122,7 +122,7 @@ public class DistributedComposeGenerator {
                 .append("    image: ").append(workerImage).append("\n")
                 .append("    depends_on:\n")
                 .append("      kafka:\n")
-                .append("        condition: service_healthy\n")
+                .append("        condition: service_started\n")
                 .append("    ports:\n")
                 .append("      - \"").append(hostDebugPort).append(":").append(containerDebugPort).append("\"\n")
                 .append("    environment:\n")
@@ -159,7 +159,7 @@ public class DistributedComposeGenerator {
                 .append("    image: ").append(workerImage).append("\n")
                 .append("    depends_on:\n")
                 .append("      kafka:\n")
-                .append("        condition: service_healthy\n")
+                .append("        condition: service_started\n")
                 .append("    ports:\n")
                 .append("      - \"").append(hostDebugPort).append(":").append(containerDebugPort).append("\"\n")
                 .append("    environment:\n")

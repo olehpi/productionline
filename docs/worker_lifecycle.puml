@@ -1,0 +1,31 @@
+@startuml
+
+skinparam state {
+  BackgroundColor white
+}
+
+[*] --> PollKafka
+
+PollKafka --> DeserializeMessage : message received
+
+DeserializeMessage --> Validate
+
+Validate --> ExecuteOperation
+
+ExecuteOperation --> Success : OK
+ExecuteOperation --> Retry : transient error
+ExecuteOperation --> Fail : fatal error
+
+Retry --> BackoffWait
+BackoffWait --> PollKafka
+
+Success --> CommitOffset
+CommitOffset --> PublishResult
+
+PublishResult --> PollKafka
+
+Fail --> DeadLetterQueue
+
+DeadLetterQueue --> [*]
+
+@enduml

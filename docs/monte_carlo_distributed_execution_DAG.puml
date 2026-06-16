@@ -1,0 +1,32 @@
+@startuml
+
+skinparam componentStyle rectangle
+top to bottom direction
+
+component "Simulation Request" as Req
+
+component "Route Splitter" as Splitter
+
+component "Monte Carlo Runner Node 1" as W1
+component "Monte Carlo Runner Node 2" as W2
+component "Monte Carlo Runner Node N" as WN
+
+component "Result Aggregator" as Aggregator
+component "Statistical Engine\n(mean, variance, confidence)" as Stats
+
+component "Final Simulation Result" as Result
+
+Req --> Splitter
+
+Splitter --> W1
+Splitter --> W2
+Splitter --> WN
+
+W1 --> Aggregator
+W2 --> Aggregator
+WN --> Aggregator
+
+Aggregator --> Stats
+Stats --> Result
+
+@enduml

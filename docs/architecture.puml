@@ -1,0 +1,149 @@
+@startuml
+
+' =======================
+' STYLE (C4-like clean)
+' =======================
+skinparam defaultFontSize 28
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam componentStyle rectangle
+
+skinparam defaultFontColor black
+skinparam ArrowColor black
+
+skinparam component {
+    BackgroundColor white
+    BorderColor black
+    FontColor black
+}
+
+skinparam queue {
+    BackgroundColor white
+    BorderColor black
+    FontColor black
+}
+
+skinparam actor {
+    BackgroundColor white
+    BorderColor black
+    FontColor black
+}
+
+skinparam nodesep 5
+skinparam ranksep 5
+
+top to bottom direction
+
+
+' =======================
+' ACTOR
+' =======================
+actor "Client / Frontend" as Client
+
+
+' =======================
+' LAYER 1: API
+' =======================
+package "API Layer" {
+
+  component "Simulation\nGraph\nController\n/api/simulation-graph/*" as Controller
+}
+
+
+' =======================
+' LAYER 2: DOMAIN / CORE
+' =======================
+package "Core Domain" {
+
+  component "Production\nLine\nMapper" as Mapper
+  component "Simulation\nGraph\nService" as GraphService
+  component "Distributed\nRoute\nRegistry" as RouteRegistry
+  component "Distributed\nMonteCarlo\nSimulation\nService" as MonteCarloSvc
+  component "Technological\nTrajectory\nCsv\nService" as CsvSvc
+
+  Mapper -[hidden]down-> GraphService
+  GraphService -[hidden]down-> RouteRegistry
+  RouteRegistry -[hidden]down-> MonteCarloSvc
+  MonteCarloSvc -[hidden]down-> CsvSvc
+}
+
+
+' =======================
+' LAYER 3: ORCHESTRATION
+' =======================
+package "Execution \nOrchestration" {
+
+  component "Distributed\nSimulation\n\n(Launcher\nOrchestration \nentry point)" as Launcher
+
+  component "Distributed\nWorker\nOrchestration\nService\n\n(Worker \nlifecycle \nmanagement)" as Orchestrator
+}
+
+
+' =======================
+' LAYER 4: DISTRIBUTED SYSTEM
+' =======================
+package "Distributed System" {
+
+  queue "Kafka Topics" as Kafka
+
+  component "Distributed\nOperation\nWorker(s)\n\n(Operation \nprocessing \nnodes)" as Worker
+
+  component "Distributed\nFinishStore\n(Consumer Batch \nresult aggregation)" as FinishConsumer
+
+  component "Distributed\nTelemetryQuery\nService\n(Telemetry & \nresults query API)" as Telemetry
+
+  component "Distributed\nCompose\nGenerator\n(Docker compose\ngeneration)" as Compose
+
+
+  Kafka -[hidden]down-> Worker
+  Worker -[hidden]down-> FinishConsumer
+  FinishConsumer -[hidden]down-> Telemetry
+  Telemetry -[hidden]down-> Compose
+  ' =========================
+Controller -[hidden]right-> Kafka
+Kafka -[hidden]down-> Worker
+
+}
+
+
+' =======================
+' FLOWS
+' =======================
+
+Client --> Controller : HTTP JSON request
+
+
+' API -> Core
+Controller --> Mapper
+Controller --> GraphService
+Controller --> RouteRegistry
+Controller --> MonteCarloSvc
+Controller --> CsvSvc
+
+
+' API -> Execution
+Controller --> Launcher
+MonteCarloSvc --> Launcher
+
+
+' Execution -> Distributed
+Launcher --> Orchestrator
+Orchestrator --> Kafka : (deploy workers)\n(init topics)
+
+
+' Kafka processing
+Kafka --> Worker : task \nbatch
+Worker --> Worker : parallel \nprocessing\n(idempotent)
+Worker --> Kafka : result \nevent
+
+
+' Aggregation
+Kafka --> FinishConsumer
+FinishConsumer --> Telemetry
+Telemetry --> Controller : query \nresults
+
+
+' Tooling
+Controller --> Compose
+Controller -[hidden]down-> Kafka
+@enduml

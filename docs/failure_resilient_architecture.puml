@@ -1,0 +1,29 @@
+@startuml
+
+skinparam componentStyle rectangle
+left to right direction
+
+component "Kafka Broker" as Kafka
+component "Worker Node" as Worker
+component "Retry Mechanism" as Retry
+component "Dead Letter Queue" as DLQ
+component "Monitoring System" as Monitor
+component "Telemetry Service" as Telemetry
+
+Kafka --> Worker
+
+Worker --> Worker : retry loop\n(idempotent logic)
+
+Worker --> Retry : transient failure
+Retry --> Kafka : requeue message
+
+Worker --> DLQ : fatal error
+
+Worker --> Monitor : metrics (lag, errors)
+Kafka --> Monitor : consumer lag
+
+Worker --> Telemetry : partial results
+
+Telemetry --> Monitor : system health view
+
+@enduml

@@ -36,6 +36,7 @@ class DistributedComposeGeneratorTest {
 
         assertTrue(compose.contains("productionline-route-42-operation1-app"));
         assertTrue(compose.contains("image: productionline-productionline"));
+        assertTrue(compose.contains("condition: service_started"));
         assertTrue(compose.contains("SIMULATION_DISTRIBUTED_WORKER_INBOUND_TOPIC=route-42-line-op-1-to-2"));
         assertTrue(compose.contains("- \"" + operation1HostPort + ":5101\""));
         assertTrue(compose.contains("SPRING_KAFKA_CONSUMER_AUTO_OFFSET_RESET=earliest"));

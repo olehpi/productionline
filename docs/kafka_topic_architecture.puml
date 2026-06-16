@@ -1,0 +1,26 @@
+@startuml
+skinparam componentStyle rectangle
+top to bottom direction
+
+component "SimulationGraphController" as API
+component "DistributedSimulationLauncher" as Launcher
+
+queue "Kafka Topic: operation-batches\nkey = routeId\npartitions = N" as OpTopic
+queue "Kafka Topic: worker-results\nkey = batchId\npartitions = N" as ResultTopic
+queue "Kafka Topic: telemetry-events\nkey = simulationId" as TelemetryTopic
+
+component "Worker Node(s)" as Worker
+component "Finish Consumer" as Consumer
+
+API --> Launcher
+
+Launcher --> OpTopic : produce batch tasks
+
+OpTopic --> Worker : consume (partitioned by routeId)
+
+Worker --> ResultTopic : processed results
+
+ResultTopic --> Consumer : consume results
+
+Consumer --> TelemetryTopic : aggregated telemetry
+@enduml
